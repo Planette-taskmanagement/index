@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planetté デモ（生徒用）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #F7F9FA; font-family: 'Noto Sans JP', sans-serif; }
+  #root { height: 100vh; width: 100%; }
+  input, select, textarea {
+    color-scheme: light;
+    background-color: #FFFFFF;
+    color: #20272D;
+  }
+  input::placeholder, textarea::placeholder { color: #97A0A8; opacity: 1; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useMemo, useState, useRef, Fragment } = React;
+
+/* ============================================================
+   アイコン(公開ページでは外部アイコンライブラリを読み込めないため、
+   最小限の線画アイコンを自前で用意)
+   ============================================================ */
+const ICON_PATHS = {
+  home: <><path d="M3 11l9-8 9 8" /><path d="M5 10v9a1 1 0 001 1h3v-6h6v6h3a1 1 0 001-1v-9" /></>,
+  checkSquare: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M8 12l3 3 5-6" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4" /><path d="M16 3v4" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>,
+  users: <><circle cx="8" cy="9" r="3" /><path d="M2 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /><circle cx="17" cy="9" r="2.3" /><path d="M14.7 14.3c2.8-.3 5.3 1.8 5.3 5.7" /></>,
+  bookOpen: <><path d="M3 5c3 0 6 1 9 3v11c-3-2-6-3-9-3V5z" /><path d="M21 5c-3 0-6 1-9 3v11c3-2 6-3 9-3V5z" /></>,
+  barChart2: <><path d="M4 20V10" /><path d="M12 20V4" /><path d="M20 20v-7" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" /></>,
+  bell: <><path d="M6 8a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z" /><path d="M9.5 19a2.5 2.5 0 005 0" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
+  check: <path d="M4 12l5 5L20 7" />,
+  chevronLeft: <path d="M15 6l-6 6 6 6" />,
+  chevronRight: <path d="M9 6l6 6-6 6" />,
+  chevronDown: <path d="M6 9l6 6 6-6" />,
+  chevronUp: <path d="M18 15l-6-6-6 6" />,
+  x: <path d="M6 6l12 12M18 6L6 18" />,
+  menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  alertCircle: <><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><path d="M12 16h.01" /></>,
+  mapPin: <><path d="M12 21s7-7.5 7-12a7 7 0 10-14 0c0 4.5 7 12 7 12z" /><circle cx="12" cy="9" r="2.3" /></>,
+  userRound: <><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" /></>,
+  package: <><path d="M3 8l9-5 9 5-9 5-9-5z" /><path d="M3 8v9l9 5 9-5V8" /><path d="M12 13v9" /></>,
+  tag: <><path d="M20 12l-8 8-9-9V4h7l10 8z" /><circle cx="7.5" cy="7.5" r="1.1" /></>,
+  arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  circle: <circle cx="12" cy="12" r="6" />,
+  edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></>,
+};
+
+function Icon({ name, size = 18, color, className = "", style = {} }) {
+  const content = ICON_PATHS[name];
+  if (!content) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={{ color, ...style }}>
+      {content}
+    </svg>
+  );
+}
+
+/* ============================================================
+   トークン
+   ============================================================ */
+const COLOR = {
+  brand: "#3B82A0",
+  brandDark: "#28627D",
+  brandBg: "#EAF4F7",
+  accent: "#E0A458",
+  page: "#F7F9FA",
+  card: "#FFFFFF",
+  text: "#20272D",
+  sub: "#66737C",
+  line: "#E2E8EB",
+};
+const ME = "早稲田 太郎";
+const DAYS = ["月", "火", "水", "木", "金"];
+const PERIODS = [1, 2, 3, 4, 5, 6];
+
+function addDays(n) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function formatMD(date) {
+  if (!date) return "";
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+function toInputDate(date) {
+  if (!date) return "";
+  const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, "0"), d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function fromInputDate(str) {
+  if (!str) return null;
+  const [y, m, d] = str.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function shiftDate(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function sameDate(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function dueInfo(date, status) {
+  if (!date) return { text: "期限なし", tone: "later" };
+  if (status === "done") return { text: `完了（${formatMD(date)}）`, tone: "done" };
+  const diff = Math.round((date - startOfToday()) / 86400000);
+  if (diff < 0) return { text: `期限超過・${formatMD(date)}`, tone: "overdue" };
+  if (diff === 0) return { text: "今日まで", tone: "today" };
+  if (diff === 1) return { text: "明日まで", tone: "tomorrow" };
+  if (diff <= 7) return { text: `${formatMD(date)}まで`, tone: "week" };
+  return { text: `${formatMD(date)}まで`, tone: "later" };
+}
+const TONE_CLASS = {
+  today: "text-[#28627D] font-semibold",
+  tomorrow: "text-slate-600 font-medium",
+  week: "text-slate-500",
+  overdue: "text-rose-600 font-semibold",
+  later: "text-slate-400",
+  done: "text-slate-400",
+};
+const PRIORITY_LABEL = { high: "優先度：高", mid: "優先度：中", low: "優先度：低" };
+
+/* ============================================================
+   初期データ
+   ============================================================ */
+const DEFAULT_CATEGORIES = [
+  { id: "school", label: "学校・授業" },
+  { id: "council", label: "生徒会" },
+  { id: "committee", label: "委員会" },
+  { id: "club", label: "部活動" },
+  { id: "inquiry", label: "探究" },
+  { id: "festival", label: "文化祭" },
+  { id: "other", label: "その他" },
+];
+
+const INITIAL_TASKS = [
+  { id: "t1", title: "数学問題集 p.42〜45", detail: "教科書の演習問題。答え合わせ用の別紙も準備する。", due: addDays(0), categoryId: "school", priority: "high", status: "todo", tags: ["提出物"], assignmentId: "as1" },
+  { id: "t2", title: "英語レポート", detail: "Unit5の内容についてA4一枚でまとめる。", due: addDays(2), categoryId: "school", priority: "mid", status: "todo", tags: [], assignmentId: "as2" },
+  { id: "t3", title: "生徒会資料作成", detail: "来月の生徒総会で使う資料の下書き。", due: addDays(4), categoryId: "council", priority: "mid", status: "todo", tags: [] },
+  { id: "t4", title: "部活動 用具点検", detail: "", due: addDays(-1), categoryId: "club", priority: "low", status: "todo", tags: [] },
+];
+
+const INITIAL_ASSIGNMENTS = [
+  { id: "as1", subject: "数学", title: "数学問題集 p.42〜45", content: "教科書の演習問題を解き、答え合わせ用の別紙とあわせて提出。", due: addDays(0), method: "授業時に提出", target: "2年1組 全員", relatedClass: "数学" },
+  { id: "as2", subject: "英語", title: "英語レポート", content: "Unit5の内容について、A4一枚で要点をまとめる。", due: addDays(2), method: "オンライン提出", target: "2年1組 全員", relatedClass: "英語" },
+  { id: "as3", subject: "現代文", title: "読書感想文", content: "夏休みの課題図書について、原稿用紙2枚でまとめる。", due: addDays(6), method: "授業時に提出", target: "2年1組 全員", relatedClass: "現代文" },
+];
+
+const NOTICES = [
+  { id: "n1", from: "教務部", date: "本日", title: "来週の時間割変更について", body: "来週火曜日は特別時間割になります。詳細は昇降口の掲示板を確認してください。", deadline: null, categoryId: null },
+  { id: "n2", from: "文化祭実行委員会", date: "昨日", title: "文化祭の日程が決定しました", body: "今年度の文化祭は来月20日に開催します。各クラスの準備スケジュールは追って連絡します。クラスでの準備は各自スケジュールを確認して進めてください。", deadline: addDays(20), categoryId: "festival" },
+  { id: "n3", from: "2年1組担任", date: "2日前", title: "数学 小テストのお知らせ", body: "来週月曜日、単元4の範囲で小テストを行います。授業プリントを見直しておいてください。", deadline: addDays(7), categoryId: "school" },
+];
+
+const PROJECTS = [
+  {
+    id: "pj1", name: "探究活動", categoryId: "inquiry",
+    summary: "「地域の防災意識」をテーマにしたグループ探究。",
+    groups: [{
+      id: "g1", name: "3班", members: ["早稲田 太郎", "佐賀 花子", "大隈 重信", "瀬島 皆晄"],
+      tasks: [
+        { id: "gt1", title: "研究テーマ決定", assignee: "早稲田 太郎", due: addDays(-3), status: "done" },
+        { id: "gt2", title: "アンケート作成", assignee: "早稲田 太郎", due: addDays(3), status: "doing" },
+        { id: "gt3", title: "インタビュー相手のリストアップ", assignee: "佐賀 花子", due: addDays(5), status: "todo" },
+        { id: "gt4", title: "結果分析", assignee: "大隈 重信", due: addDays(9), status: "todo" },
+        { id: "gt5", title: "発表資料作成", assignee: "瀬島 皆晄", due: addDays(12), status: "todo" },
+      ],
+    }],
+  },
+  {
+    id: "pj2", name: "文化祭準備", categoryId: "festival",
+    summary: "2年1組の出し物「お化け屋敷」の準備。",
+    groups: [{
+      id: "g2", name: "美術班", members: ["早稲田 太郎", "ベネット ハリス陸", "陳 書源"],
+      tasks: [
+        { id: "gt6", title: "看板デザイン作成", assignee: "早稲田 太郎", due: addDays(7), status: "todo" },
+        { id: "gt7", title: "装飾の買い出し", assignee: "ベネット ハリス陸", due: addDays(4), status: "todo" },
+        { id: "gt8", title: "内装レイアウト決め", assignee: "陳 書源", due: addDays(6), status: "done" },
+      ],
+    }],
+  },
+];
+
+const TIMETABLE = {
+  月: [
+    { period: 1, subject: "国語", room: "2-1教室", teacher: "田村先生", items: ["現代文の教科書", "ノート"], relatedAssignmentIds: ["as3"] },
+    { period: 2, subject: "数学", room: "2-1教室", teacher: "西村先生", items: ["数学の教科書", "問題集"], relatedAssignmentIds: ["as1"] },
+    { period: 3, subject: "英語", room: "LL教室", teacher: "ジョーンズ先生", items: ["英語の教科書", "ワークブック"], relatedAssignmentIds: ["as2"] },
+    { period: 4, subject: "体育", room: "体育館", teacher: "山口先生", items: ["体育着", "体育館シューズ"], relatedAssignmentIds: [] },
+    { period: 5, subject: "地理", room: "2-1教室", teacher: "小川先生", items: ["地理の教科書"], relatedAssignmentIds: [] },
+    { period: 6, subject: null, room: "", teacher: "", items: [], relatedAssignmentIds: [] },
+  ],
+  火: [
+    { period: 1, subject: "数学", room: "2-1教室", teacher: "西村先生", items: ["数学の教科書", "問題集"], relatedAssignmentIds: ["as1"] },
+    { period: 2, subject: "物理", room: "理科室", teacher: "松本先生", items: ["物理の教科書", "関数電卓"], relatedAssignmentIds: [] },
+    { period: 3, subject: "現代文", room: "2-1教室", teacher: "田村先生", items: ["現代文の教科書"], relatedAssignmentIds: ["as3"] },
+    { period: 4, subject: "英語", room: "LL教室", teacher: "ジョーンズ先生", items: ["英語の教科書"], relatedAssignmentIds: ["as2"] },
+    { period: 5, subject: "情報", room: "PC室", teacher: "石田先生", items: ["ノートPC"], relatedAssignmentIds: [] },
+    { period: 6, subject: "総合探究", room: "2-1教室", teacher: "小川先生", items: [], relatedAssignmentIds: [] },
+  ],
+  水: [
+    { period: 1, subject: "英語", room: "LL教室", teacher: "ジョーンズ先生", items: ["英語の教科書"], relatedAssignmentIds: ["as2"] },
+    { period: 2, subject: "数学", room: "2-1教室", teacher: "西村先生", items: ["数学の教科書", "問題集"], relatedAssignmentIds: ["as1"] },
+    { period: 3, subject: "化学", room: "理科室", teacher: "松本先生", items: ["化学の教科書", "実験ノート"], relatedAssignmentIds: [] },
+    { period: 4, subject: "体育", room: "体育館", teacher: "山口先生", items: ["体育着"], relatedAssignmentIds: [] },
+    { period: 5, subject: "現代文", room: "2-1教室", teacher: "田村先生", items: ["現代文の教科書"], relatedAssignmentIds: ["as3"] },
+    { period: 6, subject: null, room: "", teacher: "", items: [], relatedAssignmentIds: [] },
+  ],
+  木: [
+    { period: 1, subject: "地理", room: "2-1教室", teacher: "小川先生", items: ["地理の教科書"], relatedAssignmentIds: [] },
+    { period: 2, subject: "英語", room: "LL教室", teacher: "ジョーンズ先生", items: ["英語の教科書"], relatedAssignmentIds: ["as2"] },
+    { period: 3, subject: "数学", room: "2-1教室", teacher: "西村先生", items: ["数学の教科書", "問題集"], relatedAssignmentIds: ["as1"] },
+    { period: 4, subject: "音楽", room: "音楽室", teacher: "高木先生", items: ["リコーダー"], relatedAssignmentIds: [] },
+    { period: 5, subject: "現代文", room: "2-1教室", teacher: "田村先生", items: ["現代文の教科書"], relatedAssignmentIds: ["as3"] },
+    { period: 6, subject: null, room: "", teacher: "", items: [], relatedAssignmentIds: [] },
+  ],
+  金: [
+    { period: 1, subject: "物理", room: "理科室", teacher: "松本先生", items: ["物理の教科書"], relatedAssignmentIds: [] },
+    { period: 2, subject: "現代文", room: "2-1教室", teacher: "田村先生", items: ["現代文の教科書"], relatedAssignmentIds: ["as3"] },
+    { period: 3, subject: "数学", room: "2-1教室", teacher: "西村先生", items: ["数学の教科書", "問題集"], relatedAssignmentIds: ["as1"] },
+    { period: 4, subject: "英語", room: "LL教室", teacher: "ジョーンズ先生", items: ["英語の教科書"], relatedAssignmentIds: ["as2"] },
+    { period: 5, subject: "総合探究", room: "2-1教室", teacher: "小川先生", items: [], relatedAssignmentIds: [] },
+    { period: 6, subject: "LHR", room: "2-1教室", teacher: "小川先生", items: [], relatedAssignmentIds: [] },
+  ],
+};
+
+const TEST_SCORES = [
+  { subject: "国語", score: 78, prev: 74, nextTest: addDays(14) },
+  { subject: "数学", score: 61, prev: 72, nextTest: addDays(4) },
+  { subject: "英語", score: 83, prev: 80, nextTest: addDays(21) },
+  { subject: "理科", score: 70, prev: 68, nextTest: addDays(18) },
+  { subject: "社会", score: 75, prev: 71, nextTest: addDays(25) },
+];
+
+const NAV = [
+  { key: "home", label: "ホーム", icon: "home" },
+  { key: "tasks", label: "タスク", icon: "checkSquare" },
+  { key: "calendar", label: "カレンダー", icon: "calendar" },
+  { key: "timetable", label: "時間割", icon: "clock" },
+  { key: "projects", label: "プロジェクト", icon: "users" },
+  { key: "learning", label: "学習", icon: "bookOpen" },
+  { key: "grades", label: "成績", icon: "barChart2" },
+  { key: "search", label: "検索", icon: "search" },
+  { key: "settings", label: "設定", icon: "settings" },
+];
+
+/* ============================================================
+   小さな共通パーツ
+   ============================================================ */
+function PlanetteMark({ size = 34 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 1254 1254" fill="none">
+      <path d="M 250.228,687.989 A 547.000,144.000 -17.0 0 1 1029.576820,442.994618" fill="none" stroke={COLOR.brand} strokeWidth="36" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M 1156.129806,455.932980 A 547.000,144.000 -17.0 0 1 1105.772,620.011" fill="none" stroke={COLOR.brand} strokeWidth="36" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="678.000" cy="621.772" r="292.0" fill={COLOR.brandDark} />
+      <path d="M 1105.772,620.011 A 547.000,144.000 -17.0 0 1 305.630562,864.903447 A 547.000,144.000 -17.0 0 1 241.738443,862.060111 A 547.000,144.000 -17.0 0 1 250.228,687.989" fill="none" stroke={COLOR.brand} strokeWidth="36" strokeLinecap="round" strokeLinejoin="round" />
+      <polygon points="1111.56143,444.30328 959.99905,508.74582 963.20731,372.78368" fill={COLOR.brand} />
+      <circle cx="250.22" cy="687.99" r="95" fill={COLOR.accent} />
+      <circle cx="1105.78" cy="620.01" r="95" fill={COLOR.accent} />
+    </svg>
+  );
+}
+
+function Card({ children, className = "" }) {
+  return (
+    <div className={`bg-white rounded-xl border border-[#E2E8EB] ${className}`}>{children}</div>
+  );
+}
+
+function SectionHeading({ title, action }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="text-base font-bold" style={{ color: COLOR.text }}>{title}</h2>
+      {action}
+    </div>
+  );
+}
+
+function EmptyNote({ children }) {
+  return <p className="text-sm py-8 text-center border border-dashed rounded-lg" style={{ color: COLOR.sub, borderColor: COLOR.line }}>{children}</p>;
+}
+
+function CategoryTag({ categories, categoryId }) {
+  const c = categories.find((x) => x.id === categoryId);
+  if (!c) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>
+      <Icon name="tag" size={10} /> {c.label}
+    </span>
+  );
+}
+
+function NavGrid({ setView }) {
+  const items = NAV.filter((n) => !["home", "search", "settings"].includes(n.key));
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.key}
+            onClick={() => setView(item.key)}
+            className="flex flex-col items-center justify-center gap-2 py-4 rounded-xl border transition-colors hover:border-[#3B82A0]"
+            style={{ borderColor: COLOR.line, background: COLOR.card }}
+          >
+            <Icon name={item.icon} size={20} color={COLOR.brandDark} />
+            <span className="text-xs font-medium whitespace-nowrap" style={{ color: COLOR.text }}>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* タスク1行 */
+function TaskRow({ task, categories, onToggle, onEdit, onNavigate, assignee, sub }) {
+  const info = dueInfo(task.due, task.status);
+  const done = task.status === "done";
+  const Body = onNavigate ? "button" : "div";
+  return (
+    <div className="flex items-center gap-3 py-3 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>
+      <button
+        onClick={onToggle}
+        aria-label={done ? "未完了に戻す" : "完了にする"}
+        className="shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
+        style={{ borderColor: done ? COLOR.brandDark : "#CBD5D9", background: done ? COLOR.brandDark : "transparent" }}
+      >
+        {done && <Icon name="check" size={14} className="text-white" />}
+      </button>
+      <Body onClick={onNavigate} className="flex-1 min-w-0 text-left" style={{ cursor: onNavigate ? "pointer" : "default" }}>
+        <p className={`text-sm font-medium transition-all ${done ? "line-through" : ""}`} style={{ color: done ? COLOR.sub : COLOR.text }}>
+          {task.title}
+        </p>
+        {(sub || task.detail) && <p className="text-xs mt-0.5" style={{ color: COLOR.sub }}>{sub || task.detail}</p>}
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <CategoryTag categories={categories} categoryId={task.categoryId} />
+          {task.priority && <span className="text-xs" style={{ color: COLOR.sub }}>{PRIORITY_LABEL[task.priority]}</span>}
+          {assignee && <span className="text-xs" style={{ color: COLOR.sub }}>担当：{assignee}</span>}
+          {onNavigate && <span className="text-xs flex items-center gap-0.5" style={{ color: COLOR.brand }}>プロジェクトへ <Icon name="arrowRight" size={10} /></span>}
+        </div>
+      </Body>
+      {onEdit && (
+        <button onClick={onEdit} aria-label="編集" className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center border" style={{ borderColor: COLOR.line, color: COLOR.sub }}>
+          <Icon name="edit" size={13} />
+        </button>
+      )}
+      <span className={`text-xs shrink-0 ${TONE_CLASS[info.tone]}`}>{info.text}</span>
+    </div>
+  );
+}
+
+function ProgressBar({ value }) {
+  return (
+    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: COLOR.brandBg }}>
+      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, value))}%`, background: COLOR.brand }} />
+    </div>
+  );
+}
+
+/* ============================================================
+   カレンダー画面(勉強計画つき)
+   ============================================================ */
+function CalendarView({ events, studyPlan, setView }) {
+  const bySubject = {};
+  studyPlan.forEach((s) => { (bySubject[s.subject] ||= { subject: s.subject, reason: s.reason, testDate: s.testDate, dates: [] }).dates.push(s.date); });
+  const groups = Object.values(bySubject);
+
+  return (
+    <div className="max-w-4xl mx-auto w-full">
+      {groups.length > 0 && (
+        <Card className="p-4 mb-6" style={{ background: "#E7F3EE", border: "none" }}>
+          <p className="text-sm font-semibold mb-3" style={{ color: "#237A57" }}>おすすめの勉強計画</p>
+          <div className="flex flex-col gap-3">
+            {groups.map((g) => (
+              <div key={g.subject} className="text-sm" style={{ color: "#1F6549" }}>
+                <p className="font-medium">{g.subject}（{formatMD(g.testDate)}にテスト予定）</p>
+                <p className="text-xs mt-0.5" style={{ color: "#3C8A6B" }}>{g.reason}。{g.dates.map((d) => formatMD(d)).join("・")}に復習の時間を確保することをおすすめします。</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      <MonthCalendar events={events} onOpenTask={() => setView("tasks")} />
+    </div>
+  );
+}
+
+/* ============================================================
+   カレンダー
+   ============================================================ */
+function MonthCalendar({ events, onOpenTask }) {
+  const [y, setY] = useState(new Date().getFullYear());
+  const [m, setM] = useState(new Date().getMonth());
+  const first = new Date(y, m, 1);
+  const startWeekday = first.getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
+  const today = new Date();
+
+  const byDate = {};
+  events.forEach((e) => {
+    if (!e.date) return;
+    const key = `${e.date.getFullYear()}-${e.date.getMonth()}-${e.date.getDate()}`;
+    (byDate[key] ||= []).push(e);
+  });
+
+  const cells = [];
+  for (let i = 0; i < totalCells; i++) {
+    const dayNum = i - startWeekday + 1;
+    const cellDate = new Date(y, m, dayNum);
+    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
+    const key = `${cellDate.getFullYear()}-${cellDate.getMonth()}-${cellDate.getDate()}`;
+    const dayEvents = byDate[key] || [];
+    cells.push(
+      <div key={i} className="min-h-[86px] border rounded-lg p-1.5" style={{ borderColor: COLOR.line, background: inMonth ? COLOR.card : "#FAFBFC", opacity: inMonth ? 1 : 0.5, boxShadow: sameDate(cellDate, today) ? `inset 0 0 0 2px ${COLOR.brand}` : "none" }}>
+        <p className="text-xs mb-1" style={{ color: sameDate(cellDate, today) ? COLOR.brand : COLOR.sub, fontWeight: sameDate(cellDate, today) ? 700 : 400 }}>{cellDate.getDate()}</p>
+        <div className="flex flex-col gap-1">
+          {dayEvents.slice(0, 2).map((e, idx) => (
+            <button key={idx} onClick={() => e.taskRef && onOpenTask && onOpenTask(e.taskRef)} className="text-[10px] px-1.5 py-0.5 rounded truncate text-left" style={{
+              background: e.kind === "event" ? "#F1E9DC" : e.kind === "study" ? "#E7F3EE" : COLOR.brandBg,
+              color: e.kind === "event" ? "#8A6A2E" : e.kind === "study" ? "#237A57" : COLOR.brandDark,
+            }}>
+              {e.title}
+            </button>
+          ))}
+          {dayEvents.length > 2 && <span className="text-[10px]" style={{ color: COLOR.sub }}>+{dayEvents.length - 2}件</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setM((v) => (v === 0 ? (setY(y - 1), 11) : v - 1))} className="w-8 h-8 rounded-full border flex items-center justify-center" style={{ borderColor: COLOR.line }}><Icon name="chevronLeft" size={16} /></button>
+          <p className="font-bold" style={{ color: COLOR.text }}>{y}年{m + 1}月</p>
+          <button onClick={() => setM((v) => (v === 11 ? (setY(y + 1), 0) : v + 1))} className="w-8 h-8 rounded-full border flex items-center justify-center" style={{ borderColor: COLOR.line }}><Icon name="chevronRight" size={16} /></button>
+        </div>
+        <button onClick={() => { setY(new Date().getFullYear()); setM(new Date().getMonth()); }} className="text-xs px-3 py-1.5 rounded-full border" style={{ borderColor: COLOR.line, color: COLOR.sub }}>今日</button>
+      </div>
+      <div className="grid grid-cols-7 gap-1.5 mb-1.5 text-center text-xs" style={{ color: COLOR.sub }}>
+        <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+      </div>
+      <div className="grid grid-cols-7 gap-1.5">{cells}</div>
+    </div>
+  );
+}
+
+/* ============================================================
+   メインアプリ
+   ============================================================ */
+function PlanetteStudentDemo() {
+  const [view, setView] = useState("home");
+  const [previousView, setPreviousView] = useState("home");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [readNoticeIds, setReadNoticeIds] = useState([]);
+
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [assignments] = useState(INITIAL_ASSIGNMENTS);
+  const [projects, setProjects] = useState(PROJECTS);
+  const [personalItems, setPersonalItems] = useState([]);
+  const [goals, setGoals] = useState([{ id: "goal1", subject: "数学", text: "次回の定期テストで75点以上を取る" }]);
+  const [reflections, setReflections] = useState([{ id: "r1", date: formatMD(addDays(-6)), text: "数学のケアレスミスが多かったので、見直しの時間を増やす。" }]);
+  const [openAssignmentId, setOpenAssignmentId] = useState(null);
+  const [openTimetableCell, setOpenTimetableCell] = useState(null);
+
+  const myProjectTasks = useMemo(() => {
+    const list = [];
+    projects.forEach((pj) => pj.groups.forEach((g) => g.tasks.forEach((t) => {
+      if (t.assignee === ME) list.push({ ...t, projectId: pj.id, projectName: pj.name, groupId: g.id, categoryId: pj.categoryId });
+    })));
+    return list;
+  }, [projects]);
+
+  const combinedTasks = useMemo(() => {
+    const linked = myProjectTasks.map((t) => ({
+      id: `proj-${t.id}`, title: `${t.projectName}：${t.title}`, detail: "", due: t.due,
+      categoryId: t.categoryId, priority: "mid", status: t.status === "done" ? "done" : "todo",
+      tags: [], fromProject: { projectId: t.projectId, groupId: t.groupId, taskId: t.id },
+    }));
+    return [...tasks, ...linked];
+  }, [tasks, myProjectTasks]);
+
+  function toggleTask(task) {
+    if (task.fromProject) {
+      const { projectId, groupId, taskId } = task.fromProject;
+      setProjects((list) => list.map((pj) => pj.id !== projectId ? pj : {
+        ...pj, groups: pj.groups.map((g) => g.id !== groupId ? g : {
+          ...g, tasks: g.tasks.map((t) => t.id !== taskId ? t : { ...t, status: t.status === "done" ? "todo" : "done" }),
+        }),
+      }));
+    } else {
+      setTasks((list) => list.map((t) => (t.id === task.id ? { ...t, status: t.status === "done" ? "todo" : "done" } : t)));
+    }
+  }
+
+  function cycleProjectTaskStatus(projectId, groupId, taskId) {
+    const next = { todo: "doing", doing: "done", done: "todo" };
+    setProjects((list) => list.map((pj) => pj.id !== projectId ? pj : {
+      ...pj, groups: pj.groups.map((g) => g.id !== groupId ? g : {
+        ...g, tasks: g.tasks.map((t) => t.id !== taskId ? t : { ...t, status: next[t.status] || "doing" }),
+      }),
+    }));
+  }
+
+  function updateProjectTask(projectId, groupId, taskId, updates) {
+    setProjects((list) => list.map((pj) => pj.id !== projectId ? pj : {
+      ...pj, groups: pj.groups.map((g) => g.id !== groupId ? g : {
+        ...g, tasks: g.tasks.map((t) => t.id !== taskId ? t : { ...t, ...updates }),
+      }),
+    }));
+  }
+
+  function addTaskFromAssignment(a) {
+    if (tasks.some((t) => t.assignmentId === a.id)) return;
+    setTasks((list) => [...list, {
+      id: `t-${a.id}`, title: a.title, detail: a.content, due: a.due,
+      categoryId: "school", priority: "mid", status: "todo", tags: [], assignmentId: a.id,
+    }]);
+  }
+
+  function submitAssignment(a) {
+    setTasks((list) => {
+      const exists = list.find((t) => t.assignmentId === a.id);
+      if (exists) {
+        return list.map((t) => (t.assignmentId === a.id ? { ...t, status: "done" } : t));
+      }
+      return [...list, {
+        id: `t-${a.id}`, title: a.title, detail: a.content, due: a.due,
+        categoryId: "school", priority: "mid", status: "done", tags: [], assignmentId: a.id,
+      }];
+    });
+  }
+
+  function addTaskFromNotice(n) {
+    if (tasks.some((t) => t.noticeId === n.id)) return;
+    setTasks((list) => [...list, {
+      id: `t-notice-${n.id}`, title: n.title, detail: n.body, due: n.deadline,
+      categoryId: n.categoryId || "other", priority: "mid", status: "todo", tags: [], noticeId: n.id,
+    }]);
+  }
+
+  function openNotices() {
+    setPreviousView(view);
+    setView("notices");
+  }
+  function toggleNotices() {
+    if (view === "notices") {
+      setView(previousView);
+    } else {
+      openNotices();
+    }
+  }
+  function markNoticeRead(id) {
+    setReadNoticeIds((list) => (list.includes(id) ? list : [...list, id]));
+  }
+
+  function addPersonalTask({ title, detail, due, categoryId, priority }) {
+    if (!title.trim()) return;
+    setTasks((list) => [...list, { id: `t-${Date.now()}`, title, detail: detail || "", due, categoryId, priority, status: "todo", tags: [] }]);
+  }
+
+  function updateTask(id, updates) {
+    setTasks((list) => list.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+  }
+
+  function deleteTask(id) {
+    setTasks((list) => list.filter((t) => t.id !== id));
+  }
+
+  const todayTasks = combinedTasks.filter((t) => t.status !== "done" && t.due && Math.round((t.due - startOfToday()) / 86400000) <= 0);
+  const weekTasks = combinedTasks.filter((t) => {
+    if (t.status === "done" || !t.due) return false;
+    const diff = Math.round((t.due - startOfToday()) / 86400000);
+    return diff > 0 && diff <= 7;
+  });
+
+  const weekdayIdx = new Date().getDay();
+  const todayKey = DAYS[weekdayIdx - 1] || null;
+  const tomorrowKey = DAYS[weekdayIdx] || null;
+  const todaySchedule = todayKey ? TIMETABLE[todayKey] : [];
+  const tomorrowSchedule = tomorrowKey ? TIMETABLE[tomorrowKey] : [];
+  const scheduleItems = (sched) => sched.filter((c) => c.subject).flatMap((c) => c.items.map((it) => ({ subject: c.subject, item: it })));
+
+  const studyPlan = useMemo(() => {
+    const weak = TEST_SCORES
+      .filter((t) => t.score - t.prev <= -5 && t.nextTest)
+      .sort((a, b) => (a.score - a.prev) - (b.score - b.prev));
+    return weak.slice(0, 2).flatMap((t) => {
+      const sessionDates = [3, 2, 1]
+        .map((n) => shiftDate(t.nextTest, -n))
+        .filter((d) => d >= startOfToday());
+      return sessionDates.map((d) => ({
+        date: d, subject: t.subject, testDate: t.nextTest,
+        reason: `前回のテストより${t.prev - t.score}点低下（${t.prev}点→${t.score}点）`,
+      }));
+    });
+  }, []);
+
+  const calendarEvents = useMemo(() => {
+    const events = [];
+    combinedTasks.forEach((t) => t.due && events.push({ date: t.due, title: t.title, kind: "task", taskRef: t }));
+    events.push({ date: addDays(20), title: "文化祭", kind: "event" });
+    studyPlan.forEach((s) => events.push({ date: s.date, title: `勉強計画：${s.subject}`, kind: "study" }));
+    return events;
+  }, [combinedTasks, studyPlan]);
+
+  const submissionStats = useMemo(() => {
+    const linkedAssignments = assignments.map((a) => {
+      const t = tasks.find((x) => x.assignmentId === a.id);
+      const submitted = t ? t.status === "done" : false;
+      const overdue = t && t.status !== "done" && t.due && t.due < startOfToday();
+      return { ...a, added: !!t, submitted, overdue };
+    });
+    const total = linkedAssignments.length;
+    const submittedCount = linkedAssignments.filter((a) => a.submitted).length;
+    const overdueCount = linkedAssignments.filter((a) => a.overdue).length;
+    return { linkedAssignments, total, submittedCount, overdueCount, rate: total ? Math.round((submittedCount / total) * 100) : 0 };
+  }, [assignments, tasks]);
+
+  const pageTitle = view === "notices" ? "学校からのお知らせ" : (NAV.find((n) => n.key === view)?.label || "");
+  const hasUnreadNotices = NOTICES.some((n) => !readNoticeIds.includes(n.id));
+
+  function openAssignmentFromTimetable(id) {
+    setOpenAssignmentId(id);
+    setView("tasksAssignments");
+  }
+
+  return (
+    <div className="h-screen w-full flex overflow-hidden" style={{ background: COLOR.page, color: COLOR.text, fontFamily: "'Noto Sans JP', sans-serif" }}>
+      <FontStyle />
+
+      <aside className="hidden md:flex md:flex-col w-64 shrink-0 h-full border-r px-3 py-5" style={{ borderColor: COLOR.line, background: COLOR.card }}>
+        <SidebarContent view={view} setView={setView} />
+      </aside>
+
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-64 px-4 py-5 flex flex-col" style={{ background: COLOR.card }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2"><PlanetteMark /><p className="font-bold text-lg">Planetté</p></div>
+              <button onClick={() => setMobileNavOpen(false)}><Icon name="x" size={20} /></button>
+            </div>
+            <SidebarContent view={view} setView={(v) => { setView(v); setMobileNavOpen(false); }} />
+          </aside>
+        </div>
+      )}
+
+      <div className="flex-1 min-w-0 h-full flex flex-col">
+        <header className="h-16 border-b flex items-center justify-between px-4 md:px-8 shrink-0" style={{ borderColor: COLOR.line, background: COLOR.card }}>
+          <div className="flex items-center gap-3">
+            <button className="md:hidden" onClick={() => setMobileNavOpen(true)}><Icon name="menu" size={22} /></button>
+            <p className="font-bold text-base">{pageTitle}</p>
+          </div>
+          <div className="flex items-center gap-3 relative">
+            <button onClick={toggleNotices} className="relative w-9 h-9 rounded-full flex items-center justify-center border" style={{ borderColor: view === "notices" ? COLOR.brand : COLOR.line, background: view === "notices" ? COLOR.brandBg : "transparent" }}>
+              <Icon name="bell" size={16} color={view === "notices" ? COLOR.brandDark : COLOR.text} />
+              {hasUnreadNotices && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500" />}
+            </button>
+            <span className="hidden sm:flex items-center gap-2 text-xs" style={{ color: COLOR.sub }}>
+              <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>早</span>
+              早稲田 太郎（2年1組）
+            </span>
+          </div>
+        </header>
+
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 pb-20 md:pb-8">
+          {view === "home" && (
+            <HomeView
+              todayTasks={todayTasks} weekTasks={weekTasks} categories={categories} toggleTask={toggleTask}
+              todaySchedule={todaySchedule} scheduleItems={scheduleItems} tomorrowSchedule={tomorrowSchedule}
+              personalItems={personalItems} setPersonalItems={setPersonalItems}
+              projects={projects} setView={setView} onOpenNotices={openNotices}
+            />
+          )}
+          {(view === "tasks" || view === "tasksAssignments") && (
+            <TasksView
+              tasks={combinedTasks} categories={categories} toggleTask={toggleTask} addPersonalTask={addPersonalTask}
+              updateTask={updateTask} deleteTask={deleteTask}
+              assignments={assignments} addTaskFromAssignment={addTaskFromAssignment} submitAssignment={submitAssignment}
+              openAssignmentId={openAssignmentId} setOpenAssignmentId={setOpenAssignmentId}
+              submissionStats={submissionStats}
+              initialTab={view === "tasksAssignments" ? "assignments" : "tasks"}
+              setView={setView}
+            />
+          )}
+          {view === "calendar" && <CalendarView events={calendarEvents} studyPlan={studyPlan} setView={setView} />}
+          {view === "timetable" && (
+            <TimetableView
+              todayKey={todayKey}
+              openTimetableCell={openTimetableCell} setOpenTimetableCell={setOpenTimetableCell}
+              assignments={assignments} onOpenAssignment={openAssignmentFromTimetable}
+            />
+          )}
+          {view === "projects" && <ProjectsView projects={projects} onCycleStatus={cycleProjectTaskStatus} onUpdateTask={updateProjectTask} />}
+          {view === "learning" && (
+            <LearningView submissionStats={submissionStats} testScores={TEST_SCORES} goals={goals} setGoals={setGoals} reflections={reflections} setReflections={setReflections} />
+          )}
+          {view === "grades" && <GradesView testScores={TEST_SCORES} />}
+          {view === "search" && (
+            <SearchView tasks={combinedTasks} assignments={assignments} projects={projects} notices={NOTICES} setView={setView} />
+          )}
+          {view === "settings" && <SettingsView categories={categories} setCategories={setCategories} />}
+          {view === "notices" && <NoticesView tasks={tasks} addTaskFromNotice={addTaskFromNotice} setView={setView} readNoticeIds={readNoticeIds} onOpenNotice={markNoticeRead} />}
+        </main>
+
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t flex justify-around py-2 z-20" style={{ background: COLOR.card, borderColor: COLOR.line }}>
+          {NAV.filter((n) => ["home", "tasks", "calendar", "projects", "search"].includes(n.key)).map((item) => {
+            const Icon = item.icon;
+            const active = view === item.key;
+            return (
+              <button key={item.key} onClick={() => setView(item.key)} className="flex flex-col items-center gap-0.5 px-2">
+                <Icon name={item.icon} size={18} color={active ? COLOR.brand : COLOR.sub} />
+                <span className="text-[10px] whitespace-nowrap" style={{ color: active ? COLOR.brand : COLOR.sub }}>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+function FontStyle() {
+  return <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');`}</style>;
+}
+
+function SidebarContent({ view, setView }) {
+  return (
+    <>
+      <div className="flex items-center gap-2.5 px-3 pb-4 mb-2 border-b shrink-0" style={{ borderColor: COLOR.line }}>
+        <PlanetteMark size={32} />
+        <p className="font-bold text-lg whitespace-nowrap" style={{ color: COLOR.text }}>Planetté</p>
+      </div>
+      <nav className="flex flex-col gap-1 min-w-0">
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const active = view === item.key || (view === "tasksAssignments" && item.key === "tasks");
+          return (
+            <button
+              key={item.key}
+              onClick={() => setView(item.key)}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-colors min-w-0 w-full"
+              style={{ background: active ? COLOR.brandBg : "transparent", color: active ? COLOR.brandDark : COLOR.sub, fontWeight: active ? 600 : 400 }}
+            >
+              <Icon name={item.icon} size={17} className="shrink-0" />
+              <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </>
+  );
+}
+
+/* ============================================================
+   ホーム
+   ============================================================ */
+function HomeView({ todayTasks, weekTasks, categories, toggleTask, todaySchedule, scheduleItems, tomorrowSchedule, personalItems, setPersonalItems, projects, setView, onOpenNotices }) {
+  const [newItem, setNewItem] = useState("");
+  const todayStr = new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" });
+  const todayBelongings = scheduleItems(todaySchedule);
+  const tomorrowBelongings = scheduleItems(tomorrowSchedule);
+
+  return (
+    <div className="max-w-4xl mx-auto w-full">
+      <p className="text-3xl font-black mb-8" style={{ color: COLOR.text }}>{todayStr}</p>
+
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div>
+          <SectionHeading title="今日のタスク" action={<button onClick={() => setView("tasks")} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>すべて見る <Icon name="arrowRight" size={12} /></button>} />
+          <Card className="px-4">
+            {todayTasks.length === 0 ? <EmptyNote>今日締切のタスクはありません。</EmptyNote> : todayTasks.map((t) => <TaskRow key={t.id} task={t} categories={categories} onToggle={() => toggleTask(t)} />)}
+          </Card>
+        </div>
+        <div>
+          <SectionHeading title="近い期限のタスク" />
+          <Card className="px-4">
+            {weekTasks.length === 0 ? <EmptyNote>1週間以内の締切はありません。</EmptyNote> : weekTasks.slice(0, 4).map((t) => <TaskRow key={t.id} task={t} categories={categories} onToggle={() => toggleTask(t)} />)}
+          </Card>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div>
+          <SectionHeading title="今日の時間割" action={<button onClick={() => setView("timetable")} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>時間割を見る <Icon name="arrowRight" size={12} /></button>} />
+          <Card className="px-4">
+            {todaySchedule.length === 0 ? <EmptyNote>今日は授業がありません。</EmptyNote> : todaySchedule.filter((c) => c.subject).map((c) => (
+              <div key={c.period} className="flex items-center gap-3 py-2.5 border-b last:border-b-0 text-sm" style={{ borderColor: COLOR.line }}>
+                <span className="w-6 text-xs shrink-0" style={{ color: COLOR.sub }}>{c.period}限</span>
+                <span className="font-medium flex-1">{c.subject}</span>
+                <span className="text-xs" style={{ color: COLOR.sub }}>{c.room}</span>
+              </div>
+            ))}
+          </Card>
+        </div>
+        <div>
+          <SectionHeading title="持ち物（今日・明日）" />
+          <Card className="p-4">
+            <p className="text-xs font-semibold mb-1.5" style={{ color: COLOR.sub }}>今日</p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {todayBelongings.length === 0 && <span className="text-xs" style={{ color: COLOR.sub }}>特にありません</span>}
+              {todayBelongings.map((b, i) => <span key={i} className="text-xs px-2.5 py-1 rounded-full" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>{b.subject}：{b.item}</span>)}
+            </div>
+            <p className="text-xs font-semibold mb-1.5" style={{ color: COLOR.sub }}>明日</p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {tomorrowBelongings.length === 0 && <span className="text-xs" style={{ color: COLOR.sub }}>特にありません</span>}
+              {tomorrowBelongings.map((b, i) => <span key={i} className="text-xs px-2.5 py-1 rounded-full" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>{b.subject}：{b.item}</span>)}
+            </div>
+            {personalItems.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {personalItems.map((it, i) => <span key={i} className="text-xs px-2.5 py-1 rounded-full border" style={{ borderColor: COLOR.line, color: COLOR.text }}>{it}</span>)}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="個人的な持ち物を追加" className="flex-1 text-xs border rounded-lg px-2.5 py-1.5" style={{ borderColor: COLOR.line }} />
+              <button onClick={() => { if (newItem.trim()) { setPersonalItems((l) => [...l, newItem.trim()]); setNewItem(""); } }} className="text-xs px-3 py-1.5 rounded-lg text-white" style={{ background: COLOR.brand }}>追加</button>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div>
+          <SectionHeading title="学校からのお知らせ" action={<button onClick={onOpenNotices} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>すべて見る <Icon name="arrowRight" size={12} /></button>} />
+          <Card>
+            <div className="divide-y" style={{ borderColor: COLOR.line }}>
+              {NOTICES.slice(0, 2).map((n) => (
+                <div key={n.id} className="px-4 py-3">
+                  <p className="text-sm font-medium">{n.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: COLOR.sub }}>{n.from}・{n.date}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+        <div>
+          <SectionHeading title="プロジェクトの進捗" action={<button onClick={() => setView("projects")} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>すべて見る <Icon name="arrowRight" size={12} /></button>} />
+          <Card className="p-4 flex flex-col gap-3">
+            {projects.map((pj) => {
+              const allTasks = pj.groups.flatMap((g) => g.tasks);
+              const weight = allTasks.reduce((s, t) => s + (t.status === "done" ? 1 : t.status === "doing" ? 0.5 : 0), 0);
+              const progress = Math.round((weight / allTasks.length) * 100);
+              return (
+                <div key={pj.id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium">{pj.name}</p>
+                    <span className="text-xs font-semibold" style={{ color: COLOR.brandDark }}>{progress}%</span>
+                  </div>
+                  <ProgressBar value={progress} />
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      </div>
+
+      <SectionHeading title="機能" />
+      <NavGrid setView={setView} />
+    </div>
+  );
+}
+
+/* ============================================================
+   タスク（一覧 + 学校からの課題）
+   ============================================================ */
+function TasksView({ tasks, categories, toggleTask, addPersonalTask, updateTask, deleteTask, assignments, addTaskFromAssignment, submitAssignment, openAssignmentId, setOpenAssignmentId, submissionStats, initialTab, setView }) {
+  const [tab, setTab] = useState(initialTab || "tasks");
+  const [filter, setFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("due");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const emptyForm = { title: "", detail: "", categoryId: categories[0]?.id, priority: "mid", dueDate: toInputDate(addDays(3)) };
+  const [form, setForm] = useState(emptyForm);
+  const formRef = useRef(null);
+
+  function scrollToForm() {
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+  function openAddForm() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    scrollToForm();
+  }
+  function openEditForm(t) {
+    setEditingId(t.id);
+    setForm({
+      title: t.title, detail: t.detail || "", categoryId: t.categoryId,
+      priority: t.priority || "mid", dueDate: toInputDate(t.due),
+    });
+    setShowForm(true);
+    scrollToForm();
+  }
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+  function saveForm() {
+    if (!form.title.trim()) return;
+    const payload = { title: form.title, detail: form.detail, categoryId: form.categoryId, priority: form.priority, due: fromInputDate(form.dueDate) };
+    if (editingId) {
+      updateTask(editingId, payload);
+    } else {
+      addPersonalTask(payload);
+    }
+    closeForm();
+  }
+  function removeTask() {
+    if (editingId) deleteTask(editingId);
+    closeForm();
+  }
+
+  const filtered = tasks.filter((t) => {
+    const diff = t.due ? Math.round((t.due - startOfToday()) / 86400000) : null;
+    if (filter === "today") return t.status !== "done" && diff !== null && diff <= 0;
+    if (filter === "week") return t.status !== "done" && diff !== null && diff > 0 && diff <= 7;
+    if (filter === "overdue") return t.status !== "done" && diff !== null && diff < 0;
+    if (filter === "done") return t.status === "done";
+    return true;
+  });
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === "priority") {
+      const order = { high: 0, mid: 1, low: 2 };
+      return (order[a.priority] ?? 3) - (order[b.priority] ?? 3);
+    }
+    return (a.due || Infinity) - (b.due || Infinity);
+  });
+
+  return (
+    <div className="max-w-3xl mx-auto w-full">
+      <div className="flex gap-2 mb-6 border-b" style={{ borderColor: COLOR.line }}>
+        {[["tasks", "タスク"], ["assignments", "学校からの課題"]].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} className="px-4 py-2.5 text-sm font-medium -mb-px border-b-2" style={{ borderColor: tab === key ? COLOR.brand : "transparent", color: tab === key ? COLOR.brandDark : COLOR.sub }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "tasks" && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="flex flex-wrap gap-2">
+              {[["all", "すべて"], ["today", "今日"], ["week", "今週"], ["overdue", "期限超過"], ["done", "完了済み"]].map(([key, label]) => (
+                <button key={key} onClick={() => setFilter(key)} className="text-xs px-3 py-1.5 rounded-full border" style={{ borderColor: filter === key ? COLOR.brand : COLOR.line, background: filter === key ? COLOR.brandBg : "transparent", color: filter === key ? COLOR.brandDark : COLOR.sub }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
+                <option value="due">期限順</option>
+                <option value="priority">優先度順</option>
+              </select>
+              <button onClick={openAddForm} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full text-white" style={{ background: COLOR.brand }}>
+                <Icon name="plus" size={13} /> 追加
+              </button>
+            </div>
+          </div>
+
+          {showForm && (
+            <div ref={formRef}>
+            <Card className="p-4 mb-4 flex flex-col gap-3">
+              <p className="text-xs font-semibold" style={{ color: COLOR.sub }}>{editingId ? "タスクを編集" : "新しいタスク"}</p>
+              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="タスク名" className="text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+              <textarea value={form.detail} onChange={(e) => setForm((f) => ({ ...f, detail: e.target.value }))} placeholder="詳細（任意）" rows={2} className="text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+              <div className="flex flex-wrap gap-2">
+                <select value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+                <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
+                  <option value="high">優先度：高</option>
+                  <option value="mid">優先度：中</option>
+                  <option value="low">優先度：低</option>
+                </select>
+                <label className="flex items-center gap-1.5 text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line, color: COLOR.sub }}>
+                  期限
+                  <input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} className="text-xs border-0 p-0 focus:outline-none" style={{ color: COLOR.text }} />
+                </label>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  {editingId && (
+                    <button onClick={removeTask} className="text-xs font-medium px-3 py-2 rounded-full" style={{ color: "#D64545" }}>
+                      このタスクを削除
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={closeForm} className="text-xs font-medium px-3 py-2 rounded-full" style={{ color: COLOR.sub }}>キャンセル</button>
+                  <button onClick={saveForm} className="text-xs font-semibold px-4 py-2 rounded-full text-white" style={{ background: COLOR.brandDark }}>
+                    {editingId ? "変更を保存" : "このタスクを追加"}
+                  </button>
+                </div>
+              </div>
+            </Card>
+            </div>
+          )}
+
+          <Card className="px-4">
+            {sorted.length === 0 ? <EmptyNote>該当するタスクがありません。</EmptyNote> : sorted.map((t) => (
+              <TaskRow
+                key={t.id} task={t} categories={categories} onToggle={() => toggleTask(t)}
+                onEdit={t.fromProject ? null : () => openEditForm(t)}
+                onNavigate={t.fromProject ? () => setView("projects") : null}
+              />
+            ))}
+          </Card>
+        </>
+      )}
+
+      {tab === "assignments" && (
+        <>
+          <Card className="p-4 mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs" style={{ color: COLOR.sub }}>提出率</p>
+              <p className="text-xl font-black">{submissionStats.submittedCount} / {submissionStats.total}件</p>
+            </div>
+            <div className="w-40"><ProgressBar value={submissionStats.rate} /></div>
+          </Card>
+          <div className="flex flex-col gap-3">
+            {submissionStats.linkedAssignments.map((a) => {
+              const open = openAssignmentId === a.id;
+              return (
+                <Card key={a.id}>
+                  <div className="px-5 py-4 flex items-center gap-3">
+                    <button onClick={() => setOpenAssignmentId(open ? null : a.id)} className="flex-1 min-w-0 text-left flex items-center gap-2">
+                      <Icon name={open ? "chevronUp" : "chevronDown"} size={14} color={COLOR.sub} className="shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-xs" style={{ color: COLOR.sub }}>{a.subject}</span>
+                        <span className="block text-sm font-semibold truncate">{a.title}</span>
+                      </span>
+                    </button>
+                    <span className="text-xs px-2.5 py-1 rounded-full shrink-0" style={{
+                      background: a.submitted ? "#E8F5EC" : a.overdue ? "#FBEAEA" : "#FDF3E7",
+                      color: a.submitted ? "#2F9E56" : a.overdue ? "#D64545" : "#B8791E",
+                    }}>
+                      {a.submitted ? "提出済み" : a.overdue ? "期限超過" : "未提出"}
+                    </span>
+                    {a.submitted ? (
+                      <button onClick={() => toggleTask({ id: `t-${a.id}`, status: "done" })} className="shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border" style={{ borderColor: COLOR.line, color: COLOR.sub }}>
+                        取り消す
+                      </button>
+                    ) : (
+                      <button onClick={() => submitAssignment(a)} className="shrink-0 flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full text-white" style={{ background: COLOR.brandDark }}>
+                        <Icon name="check" size={13} /> 提出する
+                      </button>
+                    )}
+                  </div>
+                  {open && (
+                    <div className="px-5 pb-5 border-t pt-4" style={{ borderColor: COLOR.line }}>
+                      <p className="text-sm mb-3 leading-relaxed" style={{ color: COLOR.text }}>{a.content}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-4" style={{ color: COLOR.sub }}>
+                        <p>期限：{formatMD(a.due)}</p>
+                        <p>提出方法：{a.method}</p>
+                        <p>対象：{a.target}</p>
+                        <p>関連授業：{a.relatedClass}</p>
+                      </div>
+                      {!a.added && (
+                        <button onClick={() => addTaskFromAssignment(a)} className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>
+                          <Icon name="plus" size={13} /> 提出はまだ・タスクにだけ追加する
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   時間割
+   ============================================================ */
+function TimetableView({ todayKey, openTimetableCell, setOpenTimetableCell, assignments, onOpenAssignment }) {
+  return (
+    <div className="max-w-4xl mx-auto w-full">
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-6 gap-1.5 min-w-[560px]">
+          <div />
+          {DAYS.map((d) => (
+            <div key={d} className="text-center text-xs font-semibold py-2 rounded-lg" style={{ color: d === todayKey ? COLOR.brandDark : COLOR.sub, background: d === todayKey ? COLOR.brandBg : "transparent" }}>{d}曜</div>
+          ))}
+          {PERIODS.map((p) => (
+            <React.Fragment key={p}>
+              <div className="text-xs flex items-center justify-center" style={{ color: COLOR.sub }}>{p}限</div>
+              {DAYS.map((d) => {
+                const cell = TIMETABLE[d].find((c) => c.period === p);
+                return (
+                  <button
+                    key={d + p}
+                    onClick={() => cell.subject && setOpenTimetableCell(cell)}
+                    disabled={!cell.subject}
+                    className="rounded-lg border text-xs py-3 px-1 text-center transition-colors disabled:opacity-40"
+                    style={{ borderColor: COLOR.line, background: d === todayKey && cell.subject ? "#FBFDFD" : COLOR.card }}
+                  >
+                    {cell.subject || "―"}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      {openTimetableCell && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-6" onClick={() => setOpenTimetableCell(null)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-xl border max-w-sm w-full p-5" style={{ borderColor: COLOR.line }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-lg font-bold">{openTimetableCell.subject}</p>
+              <button onClick={() => setOpenTimetableCell(null)}><Icon name="x" size={18} /></button>
+            </div>
+            <div className="flex flex-col gap-2 text-sm mb-4">
+              <p className="flex items-center gap-2" style={{ color: COLOR.sub }}><Icon name="mapPin" size={14} />{openTimetableCell.room}</p>
+              <p className="flex items-center gap-2" style={{ color: COLOR.sub }}><Icon name="userRound" size={14} />{openTimetableCell.teacher}</p>
+              <p className="flex items-center gap-2" style={{ color: COLOR.sub }}><Icon name="package" size={14} />{openTimetableCell.items.join("、") || "特になし"}</p>
+            </div>
+            <p className="text-xs font-semibold mb-2" style={{ color: COLOR.sub }}>関連課題</p>
+            <div className="flex flex-col gap-2">
+              {openTimetableCell.relatedAssignmentIds.length === 0 && <p className="text-xs" style={{ color: COLOR.sub }}>現在ありません</p>}
+              {openTimetableCell.relatedAssignmentIds.map((id) => {
+                const a = assignments.find((x) => x.id === id);
+                if (!a) return null;
+                return (
+                  <button key={id} onClick={() => { setOpenTimetableCell(null); onOpenAssignment(id); }} className="text-left text-xs px-3 py-2 rounded-lg border flex items-center justify-between" style={{ borderColor: COLOR.line }}>
+                    {a.title}<Icon name="arrowRight" size={12} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   プロジェクト
+   ============================================================ */
+function ProjectsView({ projects, onCycleStatus, onUpdateTask }) {
+  const [openId, setOpenId] = useState(projects[0]?.id ?? null);
+  const [editing, setEditing] = useState(null); // { projectId, groupId, taskId }
+  const [taskForm, setTaskForm] = useState({ title: "", assignee: "", dueDate: "" });
+
+  function startEdit(pj, g, t) {
+    setEditing({ projectId: pj.id, groupId: g.id, taskId: t.id });
+    setTaskForm({ title: t.title, assignee: t.assignee, dueDate: toInputDate(t.due) });
+  }
+  function cancelEdit() {
+    setEditing(null);
+  }
+  function saveEdit() {
+    if (!taskForm.title.trim() || !editing) return;
+    onUpdateTask(editing.projectId, editing.groupId, editing.taskId, {
+      title: taskForm.title, assignee: taskForm.assignee, due: fromInputDate(taskForm.dueDate),
+    });
+    setEditing(null);
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
+      {projects.map((pj) => {
+        const allTasks = pj.groups.flatMap((g) => g.tasks);
+        const weight = allTasks.reduce((s, t) => s + (t.status === "done" ? 1 : t.status === "doing" ? 0.5 : 0), 0);
+        const progress = Math.round((weight / allTasks.length) * 100);
+        const open = openId === pj.id;
+        const memberLoad = {};
+        allTasks.forEach((t) => { memberLoad[t.assignee] = (memberLoad[t.assignee] || 0) + 1; });
+
+        return (
+          <Card key={pj.id}>
+            <button onClick={() => setOpenId(open ? null : pj.id)} className="w-full text-left px-5 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-base font-bold">{pj.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: COLOR.sub }}>{pj.summary}</p>
+                </div>
+                <span className="text-lg font-black shrink-0" style={{ color: COLOR.brandDark }}>{progress}%</span>
+              </div>
+              <ProgressBar value={progress} />
+            </button>
+            {open && pj.groups.map((g) => (
+              <div key={g.id} className="px-5 pb-5 border-t pt-4" style={{ borderColor: COLOR.line }}>
+                <p className="text-xs mb-3" style={{ color: COLOR.sub }}>{g.name}・メンバー：{g.members.join("・")}</p>
+                <p className="text-[11px] mb-2" style={{ color: COLOR.sub }}>○をタップすると 未着手 → 進行中 → 完了 の順に切り替わります</p>
+                <div className="flex flex-col">
+                  {g.tasks.map((t) => {
+                    const isEditing = editing && editing.taskId === t.id;
+                    if (isEditing) {
+                      return (
+                        <div key={t.id} className="py-3 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>
+                          <div className="flex flex-col gap-2 rounded-lg p-3" style={{ background: COLOR.brandBg }}>
+                            <input value={taskForm.title} onChange={(e) => setTaskForm((f) => ({ ...f, title: e.target.value }))} placeholder="タスク名" className="text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+                            <div className="flex flex-wrap gap-2">
+                              <select value={taskForm.assignee} onChange={(e) => setTaskForm((f) => ({ ...f, assignee: e.target.value }))} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
+                                {g.members.map((m) => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                              <label className="flex items-center gap-1.5 text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line, color: COLOR.sub }}>
+                                期限
+                                <input type="date" value={taskForm.dueDate} onChange={(e) => setTaskForm((f) => ({ ...f, dueDate: e.target.value }))} className="text-xs border-0 p-0 focus:outline-none" style={{ color: COLOR.text }} />
+                              </label>
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={cancelEdit} className="text-xs font-medium px-3 py-1.5 rounded-full" style={{ color: COLOR.sub }}>キャンセル</button>
+                              <button onClick={saveEdit} className="text-xs font-semibold px-4 py-1.5 rounded-full text-white" style={{ background: COLOR.brandDark }}>保存</button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div
+                        key={t.id}
+                        className="flex items-center gap-3 py-2.5 px-2.5 -mx-2.5 border-b last:border-b-0 rounded-lg transition-colors"
+                        style={{ borderColor: COLOR.line, background: t.status === "doing" ? COLOR.brandBg : "transparent" }}
+                      >
+                        <button
+                          onClick={() => onCycleStatus(pj.id, g.id, t.id)}
+                          className="shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center"
+                          style={{ borderColor: t.status === "done" ? COLOR.brandDark : t.status === "doing" ? COLOR.brand : "#CBD5D9", background: t.status === "done" ? COLOR.brandDark : "transparent" }}
+                        >
+                          {t.status === "done" && <Icon name="check" size={13} className="text-white" />}
+                          {t.status === "doing" && <Icon name="circle" size={7} style={{ fill: COLOR.brand, color: COLOR.brand }} />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${t.status === "done" ? "line-through" : t.status === "doing" ? "font-semibold" : ""}`} style={{ color: t.status === "done" ? COLOR.sub : t.status === "doing" ? COLOR.brandDark : COLOR.text }}>{t.title}</p>
+                          <p className="text-xs mt-0.5" style={{ color: COLOR.sub }}>担当：{t.assignee}{t.assignee === ME && "（あなた）"}</p>
+                        </div>
+                        <span className="text-xs shrink-0" style={{ color: COLOR.sub }}>{formatMD(t.due)}</span>
+                        <button onClick={() => startEdit(pj, g, t)} aria-label="編集" className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center border" style={{ borderColor: COLOR.line, color: COLOR.sub }}>
+                          <Icon name="edit" size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs font-semibold mt-4 mb-2" style={{ color: COLOR.sub }}>担当タスク数</p>
+                <div className="flex flex-wrap gap-4">
+                  {Object.entries(memberLoad).map(([name, count]) => (
+                    <div key={name} className="text-center">
+                      <p className="text-lg font-black">{count}</p>
+                      <p className="text-[10px]" style={{ color: COLOR.sub }}>{name}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ============================================================
+   学習
+   ============================================================ */
+function LearningView({ submissionStats, testScores, goals, setGoals, reflections, setReflections }) {
+  const [goalText, setGoalText] = useState("");
+  const [goalSubject, setGoalSubject] = useState("数学");
+  const [reflectionText, setReflectionText] = useState("");
+  const avgDelta = Math.round(testScores.reduce((s, t) => s + (t.score - t.prev), 0) / testScores.length);
+  const worst = [...testScores].sort((a, b) => (a.score - a.prev) - (b.score - b.prev))[0];
+
+  return (
+    <div className="max-w-3xl mx-auto w-full">
+      <div className="grid grid-cols-3 gap-3 mb-8">
+        <Card className="p-4"><p className="text-xs mb-1" style={{ color: COLOR.sub }}>課題提出率</p><p className="text-xl font-black">{submissionStats.rate}%</p></Card>
+        <Card className="p-4"><p className="text-xs mb-1" style={{ color: COLOR.sub }}>期限超過</p><p className="text-xl font-black text-rose-600">{submissionStats.overdueCount}件</p></Card>
+        <Card className="p-4"><p className="text-xs mb-1" style={{ color: COLOR.sub }}>平均点の変化</p><p className={`text-xl font-black ${avgDelta < 0 ? "text-rose-600" : ""}`}>{avgDelta > 0 ? "+" : ""}{avgDelta}点</p></Card>
+      </div>
+
+      {worst && worst.score - worst.prev < -5 && (
+        <Card className="p-4 mb-8" style={{ background: COLOR.brandBg, border: "none" }}>
+          <p className="text-sm font-semibold" style={{ color: COLOR.brandDark }}>{worst.subject}を優先して復習することをおすすめします</p>
+          <p className="text-xs mt-1" style={{ color: COLOR.brandDark }}>前回のテストより{worst.prev - worst.score}点低下しています（{worst.prev}点 → {worst.score}点）。</p>
+        </Card>
+      )}
+
+      <SectionHeading title="教科別 提出・テスト状況" />
+      <Card className="px-5 mb-8">
+        {testScores.map((t) => (
+          <div key={t.subject} className="flex items-center justify-between py-3 border-b last:border-b-0 text-sm" style={{ borderColor: COLOR.line }}>
+            <span className="font-medium">{t.subject}</span>
+            <span style={{ color: COLOR.sub }}>{t.prev}点 → <span style={{ color: COLOR.text, fontWeight: 600 }}>{t.score}点</span></span>
+          </div>
+        ))}
+      </Card>
+
+      <SectionHeading title="目標" />
+      <Card className="p-4 mb-3">
+        {goals.map((g) => (
+          <p key={g.id} className="text-sm mb-1">【{g.subject}】{g.text}</p>
+        ))}
+      </Card>
+      <div className="flex gap-2 mb-8">
+        <select value={goalSubject} onChange={(e) => setGoalSubject(e.target.value)} className="text-xs border rounded-lg px-2" style={{ borderColor: COLOR.line }}>
+          {testScores.map((t) => <option key={t.subject}>{t.subject}</option>)}
+        </select>
+        <input value={goalText} onChange={(e) => setGoalText(e.target.value)} placeholder="新しい目標を入力" className="flex-1 text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+        <button onClick={() => { if (goalText.trim()) { setGoals((g) => [...g, { id: `g${Date.now()}`, subject: goalSubject, text: goalText.trim() }]); setGoalText(""); } }} className="text-xs font-semibold px-4 rounded-lg text-white" style={{ background: COLOR.brand }}>追加</button>
+      </div>
+
+      <SectionHeading title="振り返り" />
+      <Card className="px-5 mb-3">
+        {reflections.map((r) => (
+          <div key={r.id} className="py-3 border-b last:border-b-0">
+            <p className="text-sm">{r.text}</p>
+            <p className="text-xs mt-1" style={{ color: COLOR.sub }}>{r.date}</p>
+          </div>
+        ))}
+      </Card>
+      <div className="flex gap-2">
+        <input value={reflectionText} onChange={(e) => setReflectionText(e.target.value)} placeholder="振り返りを記録する" className="flex-1 text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+        <button onClick={() => { if (reflectionText.trim()) { setReflections((r) => [{ id: `r${Date.now()}`, text: reflectionText.trim(), date: formatMD(new Date()) }, ...r]); setReflectionText(""); } }} className="text-xs font-semibold px-4 rounded-lg text-white" style={{ background: COLOR.brand }}>記録</button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   成績
+   ============================================================ */
+function SimpleBarChart({ data }) {
+  const W = 640, H = 260, padL = 32, padB = 28, padT = 10;
+  const chartW = W - padL - 12, chartH = H - padT - padB;
+  const groupW = chartW / data.length;
+  const barW = Math.min(28, groupW / 3);
+  const yFor = (v) => padT + chartH * (1 - v / 100);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+      {[0, 25, 50, 75, 100].map((v) => (
+        <g key={v}>
+          <line x1={padL} x2={W - 8} y1={yFor(v)} y2={yFor(v)} stroke={COLOR.line} strokeWidth="1" />
+          <text x={padL - 8} y={yFor(v) + 4} fontSize="11" fill={COLOR.sub} textAnchor="end">{v}</text>
+        </g>
+      ))}
+      {data.map((d, i) => {
+        const cx = padL + groupW * i + groupW / 2;
+        return (
+          <g key={d.subject}>
+            <rect x={cx - barW - 3} y={yFor(d.prev)} width={barW} height={chartH - (yFor(d.prev) - padT)} fill="#CBD9DE" rx="3" />
+            <rect x={cx + 3} y={yFor(d.score)} width={barW} height={chartH - (yFor(d.score) - padT)} fill={COLOR.brand} rx="3" />
+            <text x={cx} y={H - 8} fontSize="12" fill={COLOR.sub} textAnchor="middle">{d.subject}</text>
+          </g>
+        );
+      })}
+      <g transform={`translate(${W - 150}, 4)`}>
+        <rect width="10" height="10" fill="#CBD9DE" rx="2" /><text x="14" y="9" fontSize="11" fill={COLOR.sub}>前回</text>
+        <rect x="60" width="10" height="10" fill={COLOR.brand} rx="2" /><text x="74" y="9" fontSize="11" fill={COLOR.sub}>今回</text>
+      </g>
+    </svg>
+  );
+}
+
+function GradesView({ testScores }) {
+  return (
+    <div className="max-w-3xl mx-auto w-full">
+      <SectionHeading title="教科別成績" />
+      <Card className="p-5 mb-8">
+        <SimpleBarChart data={testScores} />
+      </Card>
+
+      <SectionHeading title="成績推移" />
+      <Card className="px-5">
+        {testScores.map((t) => {
+          const delta = t.score - t.prev;
+          return (
+            <div key={t.subject} className="flex items-center justify-between py-3 border-b last:border-b-0 text-sm" style={{ borderColor: COLOR.line }}>
+              <span className="font-medium">{t.subject}</span>
+              <span className={delta < 0 ? "text-rose-600" : delta > 0 ? "text-emerald-600" : ""} style={{ color: delta === 0 ? COLOR.sub : undefined }}>
+                {delta > 0 ? "+" : ""}{delta}点
+              </span>
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   検索
+   ============================================================ */
+function SearchView({ tasks, assignments, projects, notices, setView }) {
+  const [q, setQ] = useState("");
+  const query = q.trim().toLowerCase();
+
+  const results = useMemo(() => {
+    if (!query) return null;
+    const taskHits = tasks.filter((t) => t.title.toLowerCase().includes(query));
+    const assignHits = assignments.filter((a) => a.title.toLowerCase().includes(query) || a.subject.toLowerCase().includes(query));
+    const projectHits = projects.filter((p) => p.name.toLowerCase().includes(query) || p.summary.toLowerCase().includes(query));
+    const noticeHits = notices.filter((n) => n.title.toLowerCase().includes(query) || n.body.toLowerCase().includes(query));
+    return { taskHits, assignHits, projectHits, noticeHits };
+  }, [query, tasks, assignments, projects, notices]);
+
+  return (
+    <div className="max-w-2xl mx-auto w-full">
+      <div className="relative mb-6">
+        <Icon name="search" size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: COLOR.sub }} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="タスク・課題・プロジェクト・連絡を検索" className="w-full text-sm border rounded-xl pl-10 pr-4 py-3" style={{ borderColor: COLOR.line }} />
+      </div>
+
+      {!results && <p className="text-sm" style={{ color: COLOR.sub }}>キーワードを入力してください。</p>}
+
+      {results && (
+        <div className="flex flex-col gap-6">
+          <ResultGroup label="タスク" onOpen={() => setView("tasks")}>
+            {results.taskHits.map((t) => <p key={t.id} className="text-sm py-2 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>{t.title}</p>)}
+          </ResultGroup>
+          <ResultGroup label="学校からの課題" onOpen={() => setView("tasksAssignments")}>
+            {results.assignHits.map((a) => <p key={a.id} className="text-sm py-2 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>【{a.subject}】{a.title}</p>)}
+          </ResultGroup>
+          <ResultGroup label="プロジェクト" onOpen={() => setView("projects")}>
+            {results.projectHits.map((p) => <p key={p.id} className="text-sm py-2 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>{p.name}</p>)}
+          </ResultGroup>
+          <ResultGroup label="学校からの連絡" onOpen={() => {}}>
+            {results.noticeHits.map((n) => <p key={n.id} className="text-sm py-2 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>{n.title}</p>)}
+          </ResultGroup>
+        </div>
+      )}
+    </div>
+  );
+}
+function ResultGroup({ label, children, onOpen }) {
+  const arr = React.Children.toArray(children);
+  if (arr.length === 0) return null;
+  return (
+    <div>
+      <button onClick={onOpen} className="text-xs font-semibold mb-1.5 flex items-center gap-1" style={{ color: COLOR.sub }}>{label} <Icon name="arrowRight" size={11} /></button>
+      <Card className="px-4">{children}</Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   学校からのお知らせ
+   ============================================================ */
+function NoticesView({ tasks, addTaskFromNotice, setView, readNoticeIds, onOpenNotice }) {
+  const [openId, setOpenId] = useState(null);
+  return (
+    <div className="max-w-2xl mx-auto w-full flex flex-col gap-3">
+      {NOTICES.map((n) => {
+        const open = openId === n.id;
+        const added = tasks.some((t) => t.noticeId === n.id);
+        const unread = !readNoticeIds.includes(n.id);
+        return (
+          <Card key={n.id}>
+            <button
+              onClick={() => {
+                const willOpen = !open;
+                setOpenId(willOpen ? n.id : null);
+                if (willOpen) onOpenNotice(n.id);
+              }}
+              className="w-full text-left px-5 py-4 flex items-center justify-between gap-3"
+            >
+              <span className="flex items-start gap-2">
+                {unread && <span className="mt-1.5 w-2 h-2 rounded-full shrink-0 bg-rose-500" />}
+                <span>
+                  <span className="block text-sm font-semibold">{n.title}</span>
+                  <span className="block text-xs mt-1" style={{ color: COLOR.sub }}>{n.from}・{n.date}</span>
+                </span>
+              </span>
+              {n.deadline && (
+                <span className="text-xs px-2.5 py-1 rounded-full shrink-0" style={{ background: added ? "#E7F3EE" : COLOR.brandBg, color: added ? "#237A57" : COLOR.brandDark }}>
+                  {added ? "タスク追加済み" : "タスク化できます"}
+                </span>
+              )}
+            </button>
+            {open && (
+              <div className="px-5 pb-5 border-t pt-4" style={{ borderColor: COLOR.line }}>
+                <p className="text-sm leading-relaxed mb-4" style={{ color: COLOR.text }}>{n.body}</p>
+                {n.deadline && (
+                  <div className="flex items-center gap-3">
+                    {!added ? (
+                      <button onClick={() => addTaskFromNotice(n)} className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full text-white" style={{ background: COLOR.brand }}>
+                        <Icon name="plus" size={13} /> タスクに追加（期限：{formatMD(n.deadline)}）
+                      </button>
+                    ) : (
+                      <>
+                        <span className="text-xs px-4 py-2 rounded-full" style={{ background: "#E7F3EE", color: "#237A57" }}>タスクに追加済みです</span>
+                        <button onClick={() => setView("tasks")} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>タスクで確認する <Icon name="arrowRight" size={11} /></button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function SettingsView({ categories, setCategories }) {
+  const [newLabel, setNewLabel] = useState("");
+  function updateLabel(id, label) {
+    setCategories((list) => list.map((c) => (c.id === id ? { ...c, label } : c)));
+  }
+  function removeCategory(id) {
+    setCategories((list) => list.filter((c) => c.id !== id));
+  }
+  return (
+    <div className="max-w-lg mx-auto w-full">
+      <SectionHeading title="プロフィール" />
+      <Card className="p-4 mb-8 flex items-center gap-3">
+        <span className="w-10 h-10 rounded-full flex items-center justify-center font-semibold" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>早</span>
+        <div>
+          <p className="text-sm font-medium">早稲田 太郎</p>
+          <p className="text-xs" style={{ color: COLOR.sub }}>2年1組</p>
+        </div>
+      </Card>
+
+      <SectionHeading title="カテゴリー管理" />
+      <Card className="px-4 mb-3">
+        {categories.map((c) => (
+          <div key={c.id} className="flex items-center gap-2 py-2.5 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>
+            <input value={c.label} onChange={(e) => updateLabel(c.id, e.target.value)} className="flex-1 text-sm border rounded-lg px-2.5 py-1.5" style={{ borderColor: COLOR.line }} />
+            <button onClick={() => removeCategory(c.id)} className="text-xs px-2 py-1 rounded-lg" style={{ color: COLOR.sub }}><Icon name="x" size={14} /></button>
+          </div>
+        ))}
+      </Card>
+      <div className="flex gap-2">
+        <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="新しいカテゴリー名" className="flex-1 text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+        <button
+          onClick={() => { if (newLabel.trim()) { setCategories((l) => [...l, { id: `cat-${Date.now()}`, label: newLabel.trim() }]); setNewLabel(""); } }}
+          className="text-xs font-semibold px-4 rounded-lg text-white" style={{ background: COLOR.brand }}
+        >
+          追加
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<PlanetteStudentDemo />);
+</script>
+</body>
+</html>

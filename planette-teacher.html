@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planetté デモ（教員用）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #F7F9FA; font-family: 'Noto Sans JP', sans-serif; }
+  #root { height: 100vh; width: 100%; }
+  input, select, textarea {
+    color-scheme: light;
+    background-color: #FFFFFF;
+    color: #20272D;
+  }
+  input::placeholder, textarea::placeholder { color: #97A0A8; opacity: 1; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useMemo, useState } = React;
+
+/* ============================================================
+   トークン(生徒用と共通)
+   ============================================================ */
+const COLOR = {
+  brand: "#3B82A0",
+  brandDark: "#28627D",
+  brandBg: "#EAF4F7",
+  accent: "#E0A458",
+  page: "#F7F9FA",
+  card: "#FFFFFF",
+  text: "#20272D",
+  sub: "#66737C",
+  line: "#E2E8EB",
+};
+const TEACHER_NAME = "立方先生";
+const CLASSES = ["2年1組", "2年2組", "2年3組"];
+const ROSTER = ["早稲田 太郎", "佐賀 花子", "大隈 重信", "瀬島 皆晄", "ベネット ハリス陸", "陳 書源", "片桐 凰佑"];
+
+function addDays(n) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function formatMD(date) {
+  if (!date) return "";
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+function toInputDate(date) {
+  if (!date) return "";
+  const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, "0"), d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function fromInputDate(str) {
+  if (!str) return null;
+  const [y, m, d] = str.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function dateKey(date) { return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`; }
+
+/* ============================================================
+   アイコン
+   ============================================================ */
+const ICON_PATHS = {
+  home: <><path d="M3 11l9-8 9 8" /><path d="M5 10v9a1 1 0 001 1h3v-6h6v6h3a1 1 0 001-1v-9" /></>,
+  megaphone: <><path d="M3 10v4a2 2 0 002 2h1l3 5V3L6 8H5a2 2 0 00-2 2z" /><path d="M13 8a4 4 0 010 8" /><path d="M16 5a8 8 0 010 14" /></>,
+  clipboardCheck: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3a1 1 0 011-1h4a1 1 0 011 1v1" /><path d="M9 12.5l2 2 4-4.5" /></>,
+  barChart2: <><path d="M4 20V10" /><path d="M12 20V4" /><path d="M20 20v-7" /></>,
+  gauge: <><path d="M4 15a8 8 0 1116 0" /><path d="M12 15l4-4" /><circle cx="12" cy="15" r="1.3" /></>,
+  bell: <><path d="M6 8a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z" /><path d="M9.5 19a2.5 2.5 0 005 0" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
+  check: <path d="M4 12l5 5L20 7" />,
+  x: <path d="M6 6l12 12M18 6L6 18" />,
+  menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  chevronDown: <path d="M6 9l6 6 6-6" />,
+  chevronUp: <path d="M18 15l-6-6-6 6" />,
+  arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  alertCircle: <><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><path d="M12 16h.01" /></>,
+  users: <><circle cx="8" cy="9" r="3" /><path d="M2 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /><circle cx="17" cy="9" r="2.3" /><path d="M14.7 14.3c2.8-.3 5.3 1.8 5.3 5.7" /></>,
+  tag: <><path d="M20 12l-8 8-9-9V4h7l10 8z" /><circle cx="7.5" cy="7.5" r="1.1" /></>,
+};
+function Icon({ name, size = 18, color, className = "", style = {} }) {
+  const content = ICON_PATHS[name];
+  if (!content) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={{ color, ...style }}>
+      {content}
+    </svg>
+  );
+}
+function PlanetteMark({ size = 32 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 1254 1254" fill="none">
+      <path d="M 250.228,687.989 A 547.000,144.000 -17.0 0 1 1029.576820,442.994618" fill="none" stroke={COLOR.brand} strokeWidth="36" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M 1156.129806,455.932980 A 547.000,144.000 -17.0 0 1 1105.772,620.011" fill="none" stroke={COLOR.brand} strokeWidth="36" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="678.000" cy="621.772" r="292.0" fill={COLOR.brandDark} />
+      <path d="M 1105.772,620.011 A 547.000,144.000 -17.0 0 1 305.630562,864.903447 A 547.000,144.000 -17.0 0 1 241.738443,862.060111 A 547.000,144.000 -17.0 0 1 250.228,687.989" fill="none" stroke={COLOR.brand} strokeWidth="36" strokeLinecap="round" strokeLinejoin="round" />
+      <polygon points="1111.56143,444.30328 959.99905,508.74582 963.20731,372.78368" fill={COLOR.brand} />
+      <circle cx="250.22" cy="687.99" r="95" fill={COLOR.accent} />
+      <circle cx="1105.78" cy="620.01" r="95" fill={COLOR.accent} />
+    </svg>
+  );
+}
+function Card({ children, className = "", style = {} }) {
+  return <div className={`bg-white rounded-xl border border-[#E2E8EB] ${className}`} style={style}>{children}</div>;
+}
+function SectionHeading({ title, action }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="text-base font-bold" style={{ color: COLOR.text }}>{title}</h2>
+      {action}
+    </div>
+  );
+}
+function EmptyNote({ children }) {
+  return <p className="text-sm py-8 text-center border border-dashed rounded-lg" style={{ color: COLOR.sub, borderColor: COLOR.line }}>{children}</p>;
+}
+function ProgressBar({ value, color }) {
+  return (
+    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: COLOR.brandBg }}>
+      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, value))}%`, background: color || COLOR.brand }} />
+    </div>
+  );
+}
+
+const NAV = [
+  { key: "home", label: "ホーム", icon: "home" },
+  { key: "announce", label: "連絡・課題配信", icon: "megaphone" },
+  { key: "records", label: "授業記録", icon: "clipboardCheck" },
+  { key: "grades", label: "成績管理", icon: "barChart2" },
+  { key: "workload", label: "学習負荷", icon: "gauge" },
+];
+
+/* ============================================================
+   初期データ
+   ============================================================ */
+function makeSubmissions(rate) {
+  const m = {};
+  ROSTER.forEach((name, i) => { m[name] = i / ROSTER.length < rate / 100; });
+  return m;
+}
+
+const INITIAL_ASSIGNMENTS = [
+  { id: "ta1", kind: "assignment", subject: "数学", title: "数学問題集 p.42〜45", content: "教科書の演習問題を解き、答え合わせ用の別紙とあわせて提出。", due: addDays(0), method: "授業時に提出", targetClass: "2年1組", submissions: makeSubmissions(80) },
+  { id: "ta2", kind: "assignment", subject: "数学", title: "章末テスト対策プリント", content: "単元4の範囲の総復習プリント。", due: addDays(4), method: "オンライン提出", targetClass: "2年1組", submissions: makeSubmissions(30) },
+  { id: "ta3", kind: "assignment", subject: "数学", title: "小テスト振り返りシート", content: "先週の小テストの間違い直しと振り返り。", due: addDays(-2), method: "授業時に提出", targetClass: "2年1組", submissions: makeSubmissions(90) },
+  { id: "ta4", kind: "announcement", subject: "数学", title: "次回授業の持ち物について", content: "次回は関数電卓を使用します。忘れずに持参してください。", due: null, method: null, targetClass: "2年1組", submissions: {} },
+];
+
+// 他教科・他教員が同時期に出している課題（学習負荷の可視化デモ用）
+const OTHER_LOAD = [
+  { subject: "英語", title: "英語レポート", due: addDays(2) },
+  { subject: "英語", title: "英語レポート", due: addDays(4) },
+  { subject: "現代文", title: "読書感想文", due: addDays(4) },
+  { subject: "現代文", title: "読書感想文", due: addDays(6) },
+  { subject: "探究", title: "アンケート作成", due: addDays(3) },
+  { subject: "社会", title: "レポート課題", due: addDays(4) },
+];
+
+const SUBJECTS_TAUGHT = ["数学"];
+const LESSON_UNITS = [
+  { id: "u1", subject: "数学", unit: "二次関数", classes: { "2年1組": "完了", "2年2組": "完了", "2年3組": "進行中" } },
+  { id: "u2", subject: "数学", unit: "三角比", classes: { "2年1組": "進行中", "2年2組": "未実施", "2年3組": "未実施" } },
+  { id: "u3", subject: "数学", unit: "データの分析", classes: { "2年1組": "未実施", "2年2組": "未実施", "2年3組": "未実施" } },
+];
+
+const STUDENT_GRADE_DATA = [
+  { name: "早稲田 太郎", testAvg: 74 },
+  { name: "佐賀 花子", testAvg: 81 },
+  { name: "大隈 重信", testAvg: 68 },
+  { name: "瀬島 皆晄", testAvg: 90 },
+  { name: "ベネット ハリス陸", testAvg: 55 },
+  { name: "陳 書源", testAvg: 85 },
+  { name: "片桐 凰佑", testAvg: 60 },
+];
+
+/* ============================================================
+   メインアプリ
+   ============================================================ */
+function PlanetteTeacherDemo() {
+  const [view, setView] = useState("home");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [assignments, setAssignments] = useState(INITIAL_ASSIGNMENTS);
+  const [units, setUnits] = useState(LESSON_UNITS);
+
+  function addAssignment(a) {
+    const submissions = {};
+    ROSTER.forEach((name) => { submissions[name] = false; });
+    setAssignments((list) => [{ id: `ta-${Date.now()}`, ...a, submissions }, ...list]);
+  }
+  function toggleSubmission(assignmentId, studentName) {
+    setAssignments((list) => list.map((a) => a.id !== assignmentId ? a : { ...a, submissions: { ...a.submissions, [studentName]: !a.submissions[studentName] } }));
+  }
+  function cycleUnitStatus(unitId, className) {
+    const next = { 未実施: "進行中", 進行中: "完了", 完了: "未実施" };
+    setUnits((list) => list.map((u) => u.id !== unitId ? u : { ...u, classes: { ...u.classes, [className]: next[u.classes[className]] } }));
+  }
+
+  const workloadByDate = useMemo(() => {
+    const map = {};
+    assignments.filter((a) => a.kind === "assignment" && a.due && a.due >= startOfToday()).forEach((a) => {
+      const k = dateKey(a.due);
+      (map[k] ||= { date: a.due, items: [] }).items.push({ subject: a.subject, title: a.title });
+    });
+    OTHER_LOAD.forEach((o) => {
+      const k = dateKey(o.due);
+      (map[k] ||= { date: o.due, items: [] }).items.push({ subject: o.subject, title: o.title });
+    });
+    return Object.values(map).sort((a, b) => a.date - b.date);
+  }, [assignments]);
+
+  const pageTitle = NAV.find((n) => n.key === view)?.label || "";
+
+  return (
+    <div className="h-screen w-full flex overflow-hidden" style={{ background: COLOR.page, color: COLOR.text, fontFamily: "'Noto Sans JP', sans-serif" }}>
+      <aside className="hidden md:flex md:flex-col w-64 shrink-0 h-full border-r px-3 py-5" style={{ borderColor: COLOR.line, background: COLOR.card }}>
+        <SidebarContent view={view} setView={setView} />
+      </aside>
+
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-64 px-3 py-5 flex flex-col" style={{ background: COLOR.card }}>
+            <div className="flex items-center justify-between px-3 pb-4 mb-2 border-b" style={{ borderColor: COLOR.line }}>
+              <div className="flex items-center gap-2"><PlanetteMark /><p className="font-bold text-lg">Planetté</p></div>
+              <button onClick={() => setMobileNavOpen(false)}><Icon name="x" size={18} /></button>
+            </div>
+            <SidebarContent view={view} setView={(v) => { setView(v); setMobileNavOpen(false); }} />
+          </aside>
+        </div>
+      )}
+
+      <div className="flex-1 min-w-0 h-full flex flex-col">
+        <header className="h-16 border-b flex items-center justify-between px-4 md:px-8 shrink-0" style={{ borderColor: COLOR.line, background: COLOR.card }}>
+          <div className="flex items-center gap-3">
+            <button className="md:hidden" onClick={() => setMobileNavOpen(true)}><Icon name="menu" size={22} /></button>
+            <p className="font-bold text-base">{pageTitle}</p>
+          </div>
+          <span className="hidden sm:flex items-center gap-2 text-xs" style={{ color: COLOR.sub }}>
+            <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>立</span>
+            {TEACHER_NAME}（2年1組担任）
+          </span>
+        </header>
+
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 pb-20 md:pb-8">
+          {view === "home" && <HomeView assignments={assignments} units={units} workloadByDate={workloadByDate} setView={setView} />}
+          {view === "announce" && <AnnounceView assignments={assignments} addAssignment={addAssignment} toggleSubmission={toggleSubmission} />}
+          {view === "records" && <RecordsView units={units} cycleUnitStatus={cycleUnitStatus} />}
+          {view === "grades" && <GradesView assignments={assignments} />}
+          {view === "workload" && <WorkloadView workloadByDate={workloadByDate} />}
+        </main>
+
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t flex justify-around py-2 z-20" style={{ background: COLOR.card, borderColor: COLOR.line }}>
+          {NAV.map((item) => {
+            const active = view === item.key;
+            return (
+              <button key={item.key} onClick={() => setView(item.key)} className="flex flex-col items-center gap-0.5 px-2">
+                <Icon name={item.icon} size={18} color={active ? COLOR.brand : COLOR.sub} />
+                <span className="text-[10px] whitespace-nowrap" style={{ color: active ? COLOR.brand : COLOR.sub }}>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+function SidebarContent({ view, setView }) {
+  return (
+    <>
+      <div className="flex items-center gap-2.5 px-3 pb-4 mb-2 border-b shrink-0" style={{ borderColor: COLOR.line }}>
+        <PlanetteMark size={32} />
+        <p className="font-bold text-lg whitespace-nowrap" style={{ color: COLOR.text }}>Planetté</p>
+      </div>
+      <nav className="flex flex-col gap-1 min-w-0">
+        {NAV.map((item) => {
+          const active = view === item.key;
+          return (
+            <button
+              key={item.key}
+              onClick={() => setView(item.key)}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-colors min-w-0 w-full"
+              style={{ background: active ? COLOR.brandBg : "transparent", color: active ? COLOR.brandDark : COLOR.sub, fontWeight: active ? 600 : 400 }}
+            >
+              <Icon name={item.icon} size={17} className="shrink-0" />
+              <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </>
+  );
+}
+
+/* ============================================================
+   ホーム
+   ============================================================ */
+function HomeView({ assignments, units, workloadByDate, setView }) {
+  const todayStr = new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" });
+  const onlyAssignments = assignments.filter((a) => a.kind === "assignment");
+  const avgRate = onlyAssignments.length ? Math.round(
+    onlyAssignments.reduce((s, a) => s + Object.values(a.submissions).filter(Boolean).length / ROSTER.length, 0) / onlyAssignments.length * 100
+  ) : 0;
+  const overloadedDays = workloadByDate.filter((d) => d.items.length >= 3).length;
+  const behindUnits = units.filter((u) => {
+    const vals = Object.values(u.classes);
+    return vals.includes("完了") && vals.includes("未実施");
+  }).length;
+
+  return (
+    <div className="max-w-4xl mx-auto w-full">
+      <p className="text-sm mb-1" style={{ color: COLOR.sub }}>{todayStr}</p>
+      <h1 className="text-2xl font-black mb-8">こんにちは、{TEACHER_NAME}</h1>
+
+      <div className="grid grid-cols-3 gap-3 mb-8">
+        <Card className="p-4">
+          <p className="text-xs mb-1" style={{ color: COLOR.sub }}>配信中の課題</p>
+          <p className="text-xl font-black">{onlyAssignments.length}件</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs mb-1" style={{ color: COLOR.sub }}>平均提出率</p>
+          <p className="text-xl font-black">{onlyAssignments.length ? `${avgRate}%` : "-"}</p>
+        </Card>
+        <Card className="p-4" style={{ background: overloadedDays > 0 ? "#FDF3E7" : COLOR.card }}>
+          <p className="text-xs mb-1" style={{ color: COLOR.sub }}>要確認の日（課題集中）</p>
+          <p className="text-xl font-black" style={{ color: overloadedDays > 0 ? "#B8791E" : COLOR.text }}>{overloadedDays}日</p>
+        </Card>
+      </div>
+
+      <SectionHeading title="課題の提出状況" action={<button onClick={() => setView("announce")} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>すべて見る <Icon name="arrowRight" size={12} /></button>} />
+      <Card className="px-5 mb-8">
+        {onlyAssignments.map((a) => {
+          const submitted = Object.values(a.submissions).filter(Boolean).length;
+          return (
+            <div key={a.id} className="py-3 border-b last:border-b-0" style={{ borderColor: COLOR.line }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-sm font-medium">{a.title}</p>
+                <p className="text-sm" style={{ color: COLOR.sub }}>{submitted} / {ROSTER.length}人</p>
+              </div>
+              <ProgressBar value={(submitted / ROSTER.length) * 100} />
+            </div>
+          );
+        })}
+      </Card>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <div>
+          <SectionHeading title="授業進度の差" action={<button onClick={() => setView("records")} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>授業記録へ <Icon name="arrowRight" size={12} /></button>} />
+          <Card className="p-4">
+            {behindUnits === 0 ? <EmptyNote>クラス間で大きな進度差はありません。</EmptyNote> : (
+              <p className="text-sm" style={{ color: COLOR.sub }}>{behindUnits}件の単元で、クラス間の進度に差があります。授業記録から確認できます。</p>
+            )}
+          </Card>
+        </div>
+        <div>
+          <SectionHeading title="学習負荷" action={<button onClick={() => setView("workload")} className="text-xs flex items-center gap-1" style={{ color: COLOR.sub }}>詳しく見る <Icon name="arrowRight" size={12} /></button>} />
+          <Card className="p-4">
+            {overloadedDays === 0 ? <EmptyNote>課題が集中している日はありません。</EmptyNote> : (
+              <p className="text-sm" style={{ color: COLOR.sub }}>直近で課題の期限が重なっている日が{overloadedDays}日あります。他教科との調整の参考にしてください。</p>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   連絡・課題配信
+   ============================================================ */
+function AnnounceView({ assignments, addAssignment, toggleSubmission }) {
+  const [showForm, setShowForm] = useState(false);
+  const [openId, setOpenId] = useState(null);
+  const [form, setForm] = useState({ kind: "assignment", subject: "数学", title: "", content: "", due: toInputDate(addDays(7)), method: "授業時に提出", targetClass: "2年1組" });
+
+  function submit() {
+    if (!form.title.trim()) return;
+    if (form.kind === "assignment") {
+      addAssignment({ kind: "assignment", subject: form.subject, title: form.title, content: form.content, due: fromInputDate(form.due), method: form.method, targetClass: form.targetClass });
+    } else {
+      addAssignment({ kind: "announcement", subject: form.subject, title: form.title, content: form.content, due: null, method: null, targetClass: form.targetClass });
+    }
+    setForm((f) => ({ ...f, title: "", content: "" }));
+    setShowForm(false);
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto w-full">
+      <div className="flex justify-end mb-4">
+        <button onClick={() => setShowForm((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full text-white" style={{ background: COLOR.brand }}>
+          <Icon name="plus" size={13} /> 新しく配信する
+        </button>
+      </div>
+
+      {showForm && (
+        <Card className="p-4 mb-5 flex flex-col gap-3">
+          <div className="flex gap-2">
+            {[["assignment", "課題"], ["announcement", "連絡"]].map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setForm((f) => ({ ...f, kind: key }))} className="flex-1 text-sm font-semibold py-2 rounded-lg border" style={{
+                borderColor: form.kind === key ? COLOR.brand : COLOR.line,
+                background: form.kind === key ? COLOR.brandBg : COLOR.card,
+                color: form.kind === key ? COLOR.brandDark : COLOR.sub,
+              }}>
+                {label}を配信
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <select value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
+              {["数学", "英語", "現代文", "理科", "社会"].map((s) => <option key={s}>{s}</option>)}
+            </select>
+            <select value={form.targetClass} onChange={(e) => setForm((f) => ({ ...f, targetClass: e.target.value }))} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
+              {CLASSES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            {form.kind === "assignment" && (
+              <>
+                <select value={form.method} onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
+                  <option>授業時に提出</option>
+                  <option>オンライン提出</option>
+                </select>
+                <label className="flex items-center gap-1.5 text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line, color: COLOR.sub }}>
+                  期限
+                  <input type="date" value={form.due} onChange={(e) => setForm((f) => ({ ...f, due: e.target.value }))} className="text-xs border-0 p-0 focus:outline-none" style={{ color: COLOR.text }} />
+                </label>
+              </>
+            )}
+          </div>
+          <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder={form.kind === "assignment" ? "課題タイトル" : "連絡タイトル"} className="text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+          <textarea value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} placeholder="内容・持ち物など" rows={3} className="text-sm border rounded-lg px-3 py-2" style={{ borderColor: COLOR.line }} />
+          <div>
+            <button onClick={submit} className="text-xs font-semibold px-4 py-2 rounded-full text-white" style={{ background: COLOR.brandDark }}>配信する</button>
+          </div>
+        </Card>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {assignments.map((a) => {
+          const open = openId === a.id;
+          const isAssignment = a.kind === "assignment";
+          const submittedNames = ROSTER.filter((n) => a.submissions[n]);
+          return (
+            <Card key={a.id}>
+              <button onClick={() => setOpenId(open ? null : a.id)} className="w-full text-left px-5 py-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <p className="text-xs flex items-center gap-1.5" style={{ color: COLOR.sub }}>
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: isAssignment ? COLOR.brandBg : "#F1E9DC", color: isAssignment ? COLOR.brandDark : "#8A6A2E" }}>{isAssignment ? "課題" : "連絡"}</span>
+                      {a.subject}・{a.targetClass}
+                    </p>
+                    <p className="text-sm font-semibold mt-1">{a.title}</p>
+                  </div>
+                  {isAssignment && <p className="text-sm shrink-0" style={{ color: COLOR.sub }}>{submittedNames.length} / {ROSTER.length}人</p>}
+                </div>
+                {isAssignment && <ProgressBar value={(submittedNames.length / ROSTER.length) * 100} />}
+              </button>
+              {open && (
+                <div className="px-5 pb-5 border-t pt-4" style={{ borderColor: COLOR.line }}>
+                  <p className="text-sm mb-3" style={{ color: COLOR.text }}>{a.content || "詳細は設定されていません。"}</p>
+                  {isAssignment && (
+                    <>
+                      <p className="text-xs mb-3" style={{ color: COLOR.sub }}>期限：{formatMD(a.due)}　提出方法：{a.method}</p>
+                      <p className="text-xs font-semibold mb-2" style={{ color: COLOR.sub }}>生徒ごとの提出状況</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {ROSTER.map((name) => (
+                          <button key={name} onClick={() => toggleSubmission(a.id, name)} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border" style={{
+                            borderColor: a.submissions[name] ? COLOR.brand : COLOR.line,
+                            background: a.submissions[name] ? COLOR.brandBg : COLOR.card,
+                            color: a.submissions[name] ? COLOR.brandDark : COLOR.sub,
+                          }}>
+                            <Icon name={a.submissions[name] ? "check" : "x"} size={11} />
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   授業記録
+   ============================================================ */
+function RecordsView({ units, cycleUnitStatus }) {
+  const STATUS_STYLE = {
+    未実施: { bg: COLOR.card, color: COLOR.sub, border: COLOR.line },
+    進行中: { bg: "#FDF3E7", color: "#B8791E", border: "#F1DDBB" },
+    完了: { bg: "#E7F3EE", color: "#237A57", border: "#CBE8DB" },
+  };
+  return (
+    <div className="max-w-3xl mx-auto w-full">
+      <div className="flex flex-col gap-4">
+        {units.map((u) => (
+          <Card key={u.id} className="p-4">
+            <p className="text-xs mb-1" style={{ color: COLOR.sub }}>{u.subject}</p>
+            <p className="text-sm font-semibold mb-3">{u.unit}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {CLASSES.map((c) => {
+                const status = u.classes[c];
+                const s = STATUS_STYLE[status];
+                return (
+                  <button key={c} onClick={() => cycleUnitStatus(u.id, c)} className="rounded-lg border px-2 py-2.5 text-center transition-colors" style={{ background: s.bg, borderColor: s.border }}>
+                    <p className="text-[11px] mb-1" style={{ color: COLOR.sub }}>{c}</p>
+                    <p className="text-xs font-semibold" style={{ color: s.color }}>{status}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   成績管理
+   ============================================================ */
+function GradesView({ assignments }) {
+  const [openName, setOpenName] = useState(null);
+  const gradable = assignments.filter((a) => a.kind === "assignment");
+  const rows = STUDENT_GRADE_DATA.map((r) => {
+    const submittedCount = gradable.filter((a) => a.submissions[r.name]).length;
+    const submissionRate = gradable.length ? Math.round((submittedCount / gradable.length) * 100) : 0;
+    return { ...r, submittedCount, submissionRate };
+  });
+  return (
+    <div className="max-w-3xl mx-auto w-full">
+      <SectionHeading title="2年1組 提出・テスト状況" />
+      <p className="text-xs mb-3" style={{ color: COLOR.sub }}>生徒名をタップすると、課題ごとの提出状況を確認できます。</p>
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-4 gap-2 px-4 py-2.5 text-[11px] font-semibold" style={{ color: COLOR.sub, background: COLOR.page }}>
+          <span className="col-span-2">氏名</span><span>提出率</span><span>テスト平均</span>
+        </div>
+        {rows.map((r) => {
+          const open = openName === r.name;
+          return (
+            <div key={r.name} className="border-t" style={{ borderColor: COLOR.line }}>
+              <button onClick={() => setOpenName(open ? null : r.name)} className="grid grid-cols-4 gap-2 px-4 py-2.5 items-center text-sm w-full text-left">
+                <span className="col-span-2 flex items-center gap-1.5">
+                  <Icon name={open ? "chevronUp" : "chevronDown"} size={13} color={COLOR.sub} />
+                  {r.name}
+                </span>
+                <span style={{ color: COLOR.sub }}>{r.submissionRate}%（{r.submittedCount}/{gradable.length}件）</span>
+                <span style={{ color: COLOR.sub }}>{r.testAvg}点</span>
+              </button>
+              {open && (
+                <div className="px-4 pb-4">
+                  <div className="rounded-lg border overflow-hidden" style={{ borderColor: COLOR.line }}>
+                    {gradable.map((a) => {
+                      const submitted = a.submissions[r.name];
+                      return (
+                        <div key={a.id} className="flex items-center justify-between px-3 py-2 border-b last:border-b-0 text-xs" style={{ borderColor: COLOR.line }}>
+                          <span>
+                            <span style={{ color: COLOR.sub }}>{a.subject}・</span>{a.title}
+                            <span className="ml-2" style={{ color: COLOR.sub }}>期限：{formatMD(a.due)}</span>
+                          </span>
+                          <span className="flex items-center gap-1 px-2 py-1 rounded-full shrink-0" style={{
+                            background: submitted ? "#E7F3EE" : "#FBEAEA",
+                            color: submitted ? "#237A57" : "#D64545",
+                          }}>
+                            <Icon name={submitted ? "check" : "x"} size={11} />
+                            {submitted ? "提出済み" : "未提出"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   学習負荷の可視化
+   ============================================================ */
+function WorkloadBar({ data }) {
+  const W = 640, H = 200, padL = 24, padB = 40, padT = 10;
+  const chartW = W - padL - 10, chartH = H - padT - padB;
+  const maxCount = Math.max(4, ...data.map((d) => d.items.length));
+  const barW = Math.min(28, chartW / data.length - 6);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+      <line x1={padL} x2={W - 6} y1={padT + chartH} y2={padT + chartH} stroke={COLOR.line} />
+      {data.map((d, i) => {
+        const x = padL + (chartW / data.length) * i + 4;
+        const h = (d.items.length / maxCount) * chartH;
+        const overloaded = d.items.length >= 3;
+        return (
+          <g key={i}>
+            <rect x={x} y={padT + chartH - h} width={barW} height={h} rx="3" fill={overloaded ? "#E08A3C" : COLOR.brand} />
+            <text x={x + barW / 2} y={padT + chartH - h - 4} fontSize="10" fill={COLOR.sub} textAnchor="middle">{d.items.length}</text>
+            <text x={x + barW / 2} y={H - 22} fontSize="10" fill={COLOR.sub} textAnchor="middle">{d.date.getMonth() + 1}/{d.date.getDate()}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function WorkloadView({ workloadByDate }) {
+  return (
+    <div className="max-w-3xl mx-auto w-full">
+      <SectionHeading title="日別の課題件数" />
+      <Card className="p-4 mb-6">
+        {workloadByDate.length === 0 ? <EmptyNote>今後2週間、配信中の課題はありません。</EmptyNote> : <WorkloadBar data={workloadByDate} />}
+      </Card>
+
+      <SectionHeading title="日ごとの課題一覧" />
+      {workloadByDate.length === 0 ? (
+        <Card className="p-4"><EmptyNote>今後2週間、配信中の課題はありません。</EmptyNote></Card>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {workloadByDate.map((d, i) => {
+            const busy = d.items.length >= 3;
+            return (
+              <Card key={i} className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  {busy && <Icon name="alertCircle" size={15} color="#B8791E" />}
+                  <p className="text-sm font-semibold" style={{ color: busy ? "#B8791E" : COLOR.text }}>
+                    {formatMD(d.date)}・{d.items.length}件{busy ? "の課題が重なっています" : ""}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {d.items.map((it, j) => (
+                    <span key={j} className="text-xs px-2.5 py-1 rounded-full" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>
+                      {it.subject}：{it.title}
+                    </span>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<PlanetteTeacherDemo />);
+</script>
+</body>
+</html>
