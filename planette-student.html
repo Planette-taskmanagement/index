@@ -894,6 +894,7 @@ function TasksView({ tasks, categories, toggleTask, addPersonalTask, updateTask,
   const [tab, setTab] = useState(initialTab || "tasks");
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState("due");
+  const [groupByCategory, setGroupByCategory] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const emptyForm = { title: "", detail: "", categoryId: categories[0]?.id, priority: "mid", dueDate: toInputDate(addDays(3)) };
@@ -940,6 +941,7 @@ function TasksView({ tasks, categories, toggleTask, addPersonalTask, updateTask,
 
   const filtered = tasks.filter((t) => {
     const diff = t.due ? Math.round((t.due - startOfToday()) / 86400000) : null;
+    if (filter === "incomplete") return t.status !== "done";
     if (filter === "today") return t.status !== "done" && diff !== null && diff <= 0;
     if (filter === "week") return t.status !== "done" && diff !== null && diff > 0 && diff <= 7;
     if (filter === "overdue") return t.status !== "done" && diff !== null && diff < 0;
@@ -968,13 +970,17 @@ function TasksView({ tasks, categories, toggleTask, addPersonalTask, updateTask,
         <>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex flex-wrap gap-2">
-              {[["all", "すべて"], ["today", "今日"], ["week", "今週"], ["overdue", "期限超過"], ["done", "完了済み"]].map(([key, label]) => (
+              {[["all", "すべて"], ["incomplete", "未完了"], ["today", "今日"], ["week", "今週"], ["overdue", "期限超過"], ["done", "完了済み"]].map(([key, label]) => (
                 <button key={key} onClick={() => setFilter(key)} className="text-xs px-3 py-1.5 rounded-full border" style={{ borderColor: filter === key ? COLOR.brand : COLOR.line, background: filter === key ? COLOR.brandBg : "transparent", color: filter === key ? COLOR.brandDark : COLOR.sub }}>
                   {label}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: COLOR.line }}>
+                <button onClick={() => setGroupByCategory(false)} className="text-xs px-3 py-1.5" style={{ background: !groupByCategory ? COLOR.brandBg : COLOR.card, color: !groupByCategory ? COLOR.brandDark : COLOR.sub }}>リスト</button>
+                <button onClick={() => setGroupByCategory(true)} className="text-xs px-3 py-1.5" style={{ background: groupByCategory ? COLOR.brandBg : COLOR.card, color: groupByCategory ? COLOR.brandDark : COLOR.sub }}>カテゴリ別</button>
+              </div>
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5" style={{ borderColor: COLOR.line }}>
                 <option value="due">期限順</option>
                 <option value="priority">優先度順</option>
@@ -1024,15 +1030,45 @@ function TasksView({ tasks, categories, toggleTask, addPersonalTask, updateTask,
             </div>
           )}
 
-          <Card className="px-4">
-            {sorted.length === 0 ? <EmptyNote>該当するタスクがありません。</EmptyNote> : sorted.map((t) => (
-              <TaskRow
-                key={t.id} task={t} categories={categories} onToggle={() => toggleTask(t)}
-                onEdit={t.fromProject ? null : () => openEditForm(t)}
-                onNavigate={t.fromProject ? () => setView("projects") : null}
-              />
-            ))}
-          </Card>
+          {groupByCategory ? (
+            sorted.length === 0 ? (
+              <Card className="px-4"><EmptyNote>該当するタスクがありません。</EmptyNote></Card>
+            ) : (
+              <div className="flex flex-col gap-5">
+                {categories.map((c) => {
+                  const items = sorted.filter((t) => t.categoryId === c.id);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={c.id}>
+                      <p className="text-xs font-semibold mb-2 flex items-center gap-2" style={{ color: COLOR.sub }}>
+                        {c.label}
+                        <span className="text-[10px] font-normal px-2 py-0.5 rounded-full" style={{ background: COLOR.brandBg, color: COLOR.brandDark }}>{items.length}</span>
+                      </p>
+                      <Card className="px-4">
+                        {items.map((t) => (
+                          <TaskRow
+                            key={t.id} task={t} categories={categories} onToggle={() => toggleTask(t)}
+                            onEdit={t.fromProject ? null : () => openEditForm(t)}
+                            onNavigate={t.fromProject ? () => setView("projects") : null}
+                          />
+                        ))}
+                      </Card>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <Card className="px-4">
+              {sorted.length === 0 ? <EmptyNote>該当するタスクがありません。</EmptyNote> : sorted.map((t) => (
+                <TaskRow
+                  key={t.id} task={t} categories={categories} onToggle={() => toggleTask(t)}
+                  onEdit={t.fromProject ? null : () => openEditForm(t)}
+                  onNavigate={t.fromProject ? () => setView("projects") : null}
+                />
+              ))}
+            </Card>
+          )}
         </>
       )}
 
