@@ -183,7 +183,7 @@ const LESSON_UNITS = [
 const STUDENT_GRADE_DATA = [
   { name: "早稲田 太郎", testAvg: 74 },
   { name: "佐賀 花子", testAvg: 81 },
-  { name: "大隈 重信", testAvg: 68 },
+  { name: "大隈 重信", testAvg: 100 },
   { name: "瀬島 皆晄", testAvg: 90 },
   { name: "ベネット ハリス陸", testAvg: 55 },
   { name: "陳 書源", testAvg: 85 },
@@ -326,8 +326,7 @@ function HomeView({ assignments, units, workloadByDate, setView }) {
 
   return (
     <div className="max-w-4xl mx-auto w-full">
-      <p className="text-sm mb-1" style={{ color: COLOR.sub }}>{todayStr}</p>
-      <h1 className="text-2xl font-black mb-8">こんにちは、{TEACHER_NAME}</h1>
+      <p className="text-3xl font-black mb-8" style={{ color: COLOR.text }}>{todayStr}</p>
 
       <div className="grid grid-cols-3 gap-3 mb-8">
         <Card className="p-4">
