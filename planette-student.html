@@ -784,7 +784,7 @@ function SidebarContent({ view, setView }) {
    ============================================================ */
 function HomeView({ todayTasks, weekTasks, categories, toggleTask, todaySchedule, scheduleItems, tomorrowSchedule, personalItems, setPersonalItems, projects, setView, onOpenNotices }) {
   const [newItem, setNewItem] = useState("");
-  const todayStr = new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" });
+  const todayStr = `${new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric" })}（${new Date().toLocaleDateString("ja-JP", { weekday: "short" })}）`;
   const todayBelongings = scheduleItems(todaySchedule);
   const tomorrowBelongings = scheduleItems(tomorrowSchedule);
 

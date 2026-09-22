@@ -313,7 +313,7 @@ function SidebarContent({ view, setView }) {
    ホーム
    ============================================================ */
 function HomeView({ assignments, units, workloadByDate, setView }) {
-  const todayStr = new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "long" });
+  const todayStr = `${new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric" })}（${new Date().toLocaleDateString("ja-JP", { weekday: "short" })}）`;
   const onlyAssignments = assignments.filter((a) => a.kind === "assignment");
   const avgRate = onlyAssignments.length ? Math.round(
     onlyAssignments.reduce((s, a) => s + Object.values(a.submissions).filter(Boolean).length / ROSTER.length, 0) / onlyAssignments.length * 100
